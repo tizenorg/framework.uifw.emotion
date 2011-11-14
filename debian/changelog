@@ -1,5 +1,5 @@
-emotion (0.1.0.042+svn45353-1) unstable; urgency=low
+emotion (0.1.0+svn.65137slp2+build01) unstable; urgency=low
 
-  * a SVN release.
+  * Initial release, based on @65137
 
- -- quaker <quaker66@gmail.com>  Wed, 20 Jan 2010 16:42:17 +0100
+ -- Mike McCormack <mj.mccormack@samsung.com>  Mon, 14 Nov 2011 18:54:14 +0900
