@@ -1,0 +1,11 @@
+emotion (0.1.0+svn.65137slp2+build02) unstable; urgency=low
+
+  * Rebuild after adding package to default.xml
+
+ -- Mike McCormack <mj.mccormack@samsung.com>  Mon, 14 Nov 2011 19:18:20 +0900
+
+emotion (0.1.0+svn.65137slp2+build01) unstable; urgency=low
+
+  * Initial release, based on @65137
+
+ -- Mike McCormack <mj.mccormack@samsung.com>  Mon, 14 Nov 2011 18:54:14 +0900
