@@ -1,12 +1,13 @@
 #ifndef EMOTION_GENERIC_PLUGIN_H
 #define EMOTION_GENERIC_PLUGIN_H
 
-#include <semaphore.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+
+#include <Eina.h>
 
 #define DEFAULTWIDTH		320
 #define DEFAULTHEIGHT		240
@@ -88,7 +89,7 @@ struct _Emotion_Generic_Video_Shared
 	int last;
 	int next;
    } frame;
-   sem_t lock;
+   Eina_Semaphore lock;
    int frame_drop;
 };
 

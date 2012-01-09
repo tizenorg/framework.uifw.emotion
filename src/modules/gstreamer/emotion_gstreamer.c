@@ -1,15 +1,40 @@
-#include <unistd.h>
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
 #include <fcntl.h>
 
 #include <Eina.h>
+#include <Evas.h>
+#include <Ecore.h>
 
+#define HTTP_STREAM 0
+#define RTSP_STREAM 1
+#include <glib.h>
+#include <gst/gst.h>
+#include <glib-object.h>
+#include <gst/video/gstvideosink.h>
+#include <gst/video/video.h>
+
+#ifdef HAVE_ECORE_X
+# include <Ecore_X.h>
+# include <Ecore_Evas.h>
+# ifdef HAVE_XOVERLAY_H
+#  include <gst/interfaces/xoverlay.h>
+# endif
+#endif
+
+#include "Emotion.h"
 #include "emotion_private.h"
 #include "emotion_gstreamer.h"
-#include "Emotion.h"
 
 Eina_Bool window_manager_video = EINA_FALSE;
 int _emotion_gstreamer_log_domain = -1;
 Eina_Bool debug_fps = EINA_FALSE;
+Eina_Bool _ecore_x_available = EINA_FALSE;
 
 /* Callbacks to get the eos */
 static void _for_each_tag    (GstTagList const* list, gchar const* tag, void *data);
@@ -399,9 +424,11 @@ em_cleanup(Emotion_Gstreamer_Video *ev)
        if (ev->xvpad) gst_object_unref(ev->xvpad);
        ev->xvpad = NULL;
 
+#ifdef HAVE_ECORE_X
        fprintf(stderr, "destroying window: %i\n", ev->win);
        if (ev->win) ecore_x_window_free(ev->win);
        ev->win = 0;
+#endif
      }
 
    EINA_LIST_FREE(ev->audio_streams, astream)
@@ -1230,6 +1257,7 @@ em_priority_get(void *video)
    return ev->stream;
 }
 
+#ifdef HAVE_ECORE_X
 static Eina_Bool
 _ecore_event_x_destroy(void *data __UNUSED__, int type __UNUSED__, void *event __UNUSED__)
 {
@@ -1239,6 +1267,7 @@ _ecore_event_x_destroy(void *data __UNUSED__, int type __UNUSED__, void *event _
 
    return EINA_TRUE;
 }
+#endif
 
 static Eina_Bool
 module_open(Evas_Object           *obj,
@@ -1270,15 +1299,22 @@ module_open(Evas_Object           *obj,
    if (!em_module.init(obj, video, opt))
      return EINA_FALSE;
 
+#ifdef HAVE_ECORE_X
    ecore_event_handler_add(ECORE_X_EVENT_WINDOW_DESTROY, _ecore_event_x_destroy, NULL);
+#endif
 
    if (getenv("EMOTION_FPS_DEBUG")) debug_fps = EINA_TRUE;
 
    eina_threads_init();
 
 #ifdef HAVE_ECORE_X
+   if (ecore_x_init(NULL) > 0)
+     {
+        _ecore_x_available = EINA_TRUE;
+     }
+
    /* Check if the window manager is able to handle our special Xv window. */
-   roots = ecore_x_window_root_list(&num);
+   roots = _ecore_x_available ? ecore_x_window_root_list(&num) : NULL;
    if (roots && num > 0)
      {
         Ecore_X_Window  win, twin;
@@ -1333,6 +1369,13 @@ module_close(Emotion_Video_Module *module __UNUSED__,
              void                 *video)
 {
    em_module.shutdown(video);
+
+#ifdef HAVE_ECORE_X
+   if (_ecore_x_available)
+     {
+        ecore_x_shutdown();
+     }
+#endif
 
    eina_threads_shutdown();
 }

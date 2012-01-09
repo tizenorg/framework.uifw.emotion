@@ -1,11 +1,20 @@
 /***************************************************************************/
 /***                  emotion xine display engine                        ***/
 /***************************************************************************/
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 
+#include <Eina.h>
+#include <Evas.h>
+#include <Ecore.h>
+
+#include "Emotion.h"
 #include "emotion_private.h"
 #include "emotion_xine.h"
 
@@ -59,6 +68,8 @@ struct _Emotion_Lut
    uint8_t y     : 8;
    uint8_t foo   : 8;
 } __attribute__ ((packed));
+
+typedef void (*done_func_type)(void *data);
 
 /***************************************************************************/
 static void        *_emotion_class_init            (xine_t *xine, void *visual);
@@ -433,10 +444,10 @@ _emotion_frame_display(vo_driver_t *vo_driver, vo_frame_t *vo_frame)
 	
 	buf = &(fr->frame);
 	fr->frame.timestamp = (double)fr->vo_frame.vpts / 90000.0;
-	fr->frame.done_func = _emotion_frame_data_unlock;
+	fr->frame.done_func = (done_func_type)_emotion_frame_data_unlock;
 	fr->frame.done_data = fr;
 //	DBG("FRAME FOR %p", dv->ev);
-	write(dv->ev->fd_write, &buf, sizeof(void *));
+	if (write(dv->ev->fd_write, &buf, sizeof(void *)) < 0) perror("write");
 //	DBG("-- FRAME DEC %p == %i", fr->frame.obj, ret);
 	fr->in_use = 1;
 	dv->ev->fq++;

@@ -1,3 +1,29 @@
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include <Eina.h>
+#include <Evas.h>
+#include <Ecore.h>
+
+#define HTTP_STREAM 0
+#define RTSP_STREAM 1
+#include <glib.h>
+#include <gst/gst.h>
+#include <glib-object.h>
+#include <gst/video/gstvideosink.h>
+#include <gst/video/video.h>
+
+#ifdef HAVE_ECORE_X
+# include <Ecore_X.h>
+# include <Ecore_Evas.h>
+# ifdef HAVE_XOVERLAY_H
+#  include <gst/interfaces/xoverlay.h>
+# endif
+#endif
+
+#include "Emotion.h"
+#include "emotion_private.h"
 #include "emotion_gstreamer.h"
 
 static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE("sink",
@@ -454,13 +480,13 @@ evas_video_sink_samsung_main_render(void *data)
 {
    Emotion_Gstreamer_Buffer *send;
    Emotion_Video_Stream *vstream;
-   EvasVideoSinkPrivate* priv;
+   EvasVideoSinkPrivate *priv = NULL;
    GstBuffer* buffer;
    unsigned char *evas_data;
    const guint8 *gst_data;
    GstFormat fmt = GST_FORMAT_TIME;
    gint64 pos;
-   Eina_Bool preroll;
+   Eina_Bool preroll = EINA_FALSE;
    int stride, elevation;
    Evas_Coord w, h;
 
@@ -573,10 +599,13 @@ evas_video_sink_samsung_main_render(void *data)
    emotion_gstreamer_buffer_free(send);
 
  exit_stream:
-   if (preroll || !priv->o) return ;
-
-   if (!priv->unlocked)
-     eina_condition_signal(&priv->c);
+   if (priv)
+     {
+        if (preroll || !priv->o) return;
+        
+        if (!priv->unlocked)
+          eina_condition_signal(&priv->c);
+     }
 }
 
 static void
@@ -585,12 +614,12 @@ evas_video_sink_main_render(void *data)
    Emotion_Gstreamer_Buffer *send;
    Emotion_Gstreamer_Video *ev = NULL;
    Emotion_Video_Stream *vstream;
-   EvasVideoSinkPrivate* priv;
-   GstBuffer* buffer;
+   EvasVideoSinkPrivate *priv = NULL;
+   GstBuffer *buffer;
    unsigned char *evas_data;
    GstFormat fmt = GST_FORMAT_TIME;
    gint64 pos;
-   Eina_Bool preroll;
+   Eina_Bool preroll = EINA_FALSE;
 
    send = data;
 
@@ -637,6 +666,8 @@ evas_video_sink_main_render(void *data)
    evas_object_image_data_update_add(priv->o, 0, 0, priv->width, priv->height);
    evas_object_image_pixels_dirty_set(priv->o, 0);
 
+   _update_emotion_fps(ev);
+
    if (!preroll && ev->play_started)
      {
         _emotion_playback_started(ev->obj);
@@ -672,10 +703,13 @@ evas_video_sink_main_render(void *data)
    emotion_gstreamer_buffer_free(send);
 
  exit_stream:
-   if (preroll || !priv->o) return ;
-
-   if (!priv->unlocked)
-     eina_condition_signal(&priv->c);
+   if (priv)
+     {
+        if (preroll || !priv->o) return;
+        
+        if (!priv->unlocked)
+          eina_condition_signal(&priv->c);
+     }
 }
 
 static void
@@ -829,9 +863,9 @@ static void
 _video_resize(void *data, Evas_Object *obj __UNUSED__, const Evas_Video_Surface *surface __UNUSED__,
               Evas_Coord w, Evas_Coord h)
 {
+#ifdef HAVE_ECORE_X
    Emotion_Gstreamer_Video *ev = data;
 
-#ifdef HAVE_ECORE_X
    ecore_x_window_resize(ev->win, w, h);
 #endif
    fprintf(stderr, "resize: %i, %i\n", w, h);
@@ -841,8 +875,8 @@ static void
 _video_move(void *data, Evas_Object *obj __UNUSED__, const Evas_Video_Surface *surface __UNUSED__,
             Evas_Coord x, Evas_Coord y)
 {
-   Emotion_Gstreamer_Video *ev = data;
 #ifdef HAVE_ECORE_X
+   Emotion_Gstreamer_Video *ev = data;
    unsigned int pos[2];
 
    fprintf(stderr, "move: %i, %i\n", x, y);
@@ -888,10 +922,10 @@ _block_pad_link_cb(GstPad *pad, gboolean blocked, gpointer user_data)
 static void
 _video_show(void *data, Evas_Object *obj __UNUSED__, const Evas_Video_Surface *surface __UNUSED__)
 {
+#ifdef HAVE_ECORE_X
    Emotion_Gstreamer_Video *ev = data;
 
    fprintf(stderr, "show xv\n");
-#ifdef HAVE_ECORE_X
    ecore_x_window_show(ev->win);
 #endif
    /* gst_pad_set_blocked_async(ev->teepad, TRUE, _block_pad_link_cb, ev); */
@@ -900,10 +934,10 @@ _video_show(void *data, Evas_Object *obj __UNUSED__, const Evas_Video_Surface *s
 static void
 _video_hide(void *data, Evas_Object *obj __UNUSED__, const Evas_Video_Surface *surface __UNUSED__)
 {
+#ifdef HAVE_ECORE_X
    Emotion_Gstreamer_Video *ev = data;
 
    fprintf(stderr, "hide xv\n");
-#ifdef HAVE_ECORE_X
    ecore_x_window_hide(ev->win);
 #endif
    /* gst_pad_set_blocked_async(ev->teepad, TRUE, _block_pad_unlink_cb, ev); */
@@ -1056,7 +1090,7 @@ gstreamer_video_sink_new(Emotion_Gstreamer_Video *ev,
        evas_render_method_list_free(engines);
      }
 #else
-# warning "no ecore_x or xoverlay"
+# warning "missing: ecore_x OR xoverlay"
 #endif
 
    esink = gst_element_factory_make("emotion-sink", "sink");

@@ -1,31 +1,6 @@
 #ifndef __EMOTION_GSTREAMER_H__
 #define __EMOTION_GSTREAMER_H__
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
-#include <Evas.h>
-#include <Ecore.h>
-
-#ifdef HAVE_ECORE_X
-# include <Ecore_X.h>
-# include <Ecore_Evas.h>
-# ifdef HAVE_XOVERLAY_H
-#  include <gst/interfaces/xoverlay.h>
-# endif
-#endif
-
-#define HTTP_STREAM 0
-#define RTSP_STREAM 1
-#include <glib.h>
-#include <gst/gst.h>
-#include <glib-object.h>
-#include <gst/video/gstvideosink.h>
-#include <gst/video/video.h>
-
-#include "emotion_private.h"
-
 typedef void (*Evas_Video_Convert_Cb)(unsigned char *evas_data,
                                       const unsigned char *gst_data,
                                       unsigned int w,
@@ -209,6 +184,7 @@ struct _Emotion_Gstreamer_Message
 extern Eina_Bool window_manager_video;
 extern Eina_Bool debug_fps;
 extern int _emotion_gstreamer_log_domain;
+extern Eina_Bool _ecore_x_available;
 #define DBG(...) EINA_LOG_DOM_DBG(_emotion_gstreamer_log_domain, __VA_ARGS__)
 #define INF(...) EINA_LOG_DOM_INFO(_emotion_gstreamer_log_domain, __VA_ARGS__)
 #define WRN(...) EINA_LOG_DOM_WARN(_emotion_gstreamer_log_domain, __VA_ARGS__)
