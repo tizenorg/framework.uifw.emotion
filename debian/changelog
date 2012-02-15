@@ -1,3 +1,11 @@
+emotion (0.1.0+svn.67705slp2+build01) unstable; urgency=low
+
+  * Package Upload
+  * Git: slp/pkgs/e/emotion
+  * Tag: emotion_0.1.0+svn.67705slp2+build01
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Wed, 15 Feb 2012 19:03:23 +0900
+
 emotion (0.1.0+svn.66791slp2+build01) unstable; urgency=low
 
   * Package Upload
