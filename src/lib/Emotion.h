@@ -13,7 +13,7 @@
  * @mainpage Emotion Library Documentation
  *
  * @version 0.2.0
- * @date 2003-2011
+ * @date 2003-2012
  *
  * @section intro What is Emotion?
  *
@@ -1204,7 +1204,7 @@ EAPI Evas_Object *emotion_object_image_get(const Evas_Object *obj);
 
 typedef struct _Emotion_Webcam Emotion_Webcam; /**< Webcam description */
 
-extern int EMOTION_WEBCAM_UPDATE; /**< Ecore_Event triggered when a new webcam is plugged in */
+EAPI extern int EMOTION_WEBCAM_UPDATE; /**< Ecore_Event triggered when a new webcam is plugged in */
 
 /**
  * @brief Get a list of active and available webcam

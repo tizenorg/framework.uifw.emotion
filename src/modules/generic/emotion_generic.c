@@ -1,14 +1,18 @@
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
+
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
+
 #include <Eina.h>
 #include <Evas.h>
+#include <Ecore.h>
 
 #include "Emotion.h"
 #include "emotion_private.h"
@@ -103,19 +107,19 @@ _player_send_cmd(Emotion_Generic_Video *ev, int cmd)
 	ERR("invalid command to player.");
 	return;
      }
-   write(ev->fd_write, &cmd, sizeof(cmd));
+   if (write(ev->fd_write, &cmd, sizeof(cmd)) < 0) perror("write");
 }
 
 static void
 _player_send_int(Emotion_Generic_Video *ev, int number)
 {
-   write(ev->fd_write, &number, sizeof(number));
+   if (write(ev->fd_write, &number, sizeof(number)) < 0) perror("write");
 }
 
 static void
 _player_send_float(Emotion_Generic_Video *ev, float number)
 {
-   write(ev->fd_write, &number, sizeof(number));
+   if (write(ev->fd_write, &number, sizeof(number)) < 0) perror("write");
 }
 
 static void
@@ -127,8 +131,8 @@ _player_send_str(Emotion_Generic_Video *ev, const char *str, Eina_Bool stringsha
      len = eina_stringshare_strlen(str) + 1;
    else
      len = strlen(str) + 1;
-   write(ev->fd_write, &len, sizeof(len));
-   write(ev->fd_write, str, len);
+   if (write(ev->fd_write, &len, sizeof(len)) < 0) perror("write");
+   if (write(ev->fd_write, str, len) < 0) perror("write");
 }
 
 static Eina_Bool
@@ -161,7 +165,7 @@ _create_shm_data(Emotion_Generic_Video *ev, const char *shmname)
    vs = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, shmfd, 0);
    if (vs == MAP_FAILED)
      {
-	ERR("error when mapping shared memory.\n");
+	ERR("error when mapping shared memory");
 	return EINA_FALSE;
      }
 
@@ -174,7 +178,11 @@ _create_shm_data(Emotion_Generic_Video *ev, const char *shmname)
    vs->frame.last = 2;
    vs->frame.next = 2;
    vs->frame_drop = 0;
-   sem_init(&vs->lock, 1, 1);
+   if (!eina_semaphore_new(&vs->lock, 1))
+     {
+	ERR("can not create semaphore");
+	return EINA_FALSE;
+     }
    ev->frame.frames[0] = (unsigned char *)vs + sizeof(*vs);
    ev->frame.frames[1] = (unsigned char *)vs + sizeof(*vs) + vs->height * vs->width * vs->pitch;
    ev->frame.frames[2] = (unsigned char *)vs + sizeof(*vs) + 2 * vs->height * vs->width * vs->pitch;
@@ -469,8 +477,7 @@ static void
 _player_file_closed(Emotion_Generic_Video *ev)
 {
    INF("Closed previous file.");
-   sem_destroy(&ev->shared->lock);
-
+   eina_semaphore_free(&ev->shared->lock);
    ev->closing = EINA_FALSE;
 
    if (ev->opening)
@@ -899,8 +906,8 @@ _player_exec(Emotion_Generic_Video *ev)
       ECORE_EXE_PIPE_READ_LINE_BUFFERED | ECORE_EXE_NOT_LEADER,
       ev);
 
-   INF("created pipe emotion -> player: %d -> %d\n", pipe_out[1], pipe_out[0]);
-   INF("created pipe player -> emotion: %d -> %d\n", pipe_in[1], pipe_in[0]);
+   INF("created pipe emotion -> player: %d -> %d", pipe_out[1], pipe_out[0]);
+   INF("created pipe player -> emotion: %d -> %d", pipe_in[1], pipe_in[0]);
 
    close(pipe_in[1]);
    close(pipe_out[0]);
@@ -1244,7 +1251,8 @@ em_bgra_data_get(void *data, unsigned char **bgra_data)
      return 0;
 
    // lock frame here
-   sem_wait(&ev->shared->lock);
+   if (!eina_semaphore_lock(&ev->shared->lock))
+     return 0;
 
    // send current frame to emotion
    if (ev->shared->frame.emotion != ev->shared->frame.last)
@@ -1259,7 +1267,7 @@ em_bgra_data_get(void *data, unsigned char **bgra_data)
    ev->shared->frame_drop = 0;
 
    // unlock frame here
-   sem_post(&ev->shared->lock);
+   eina_semaphore_release(&ev->shared->lock, 1);
    ev->drop = 0;
 
    return 1;

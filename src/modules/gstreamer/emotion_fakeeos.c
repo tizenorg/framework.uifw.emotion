@@ -1,3 +1,24 @@
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include <Eina.h>
+#include <Evas.h>
+
+#include <glib.h>
+#include <gst/gst.h>
+#include <gst/video/video.h>
+#include <gst/video/gstvideosink.h>
+
+#ifdef HAVE_ECORE_X
+# include <Ecore_X.h>
+# include <Ecore_Evas.h>
+# ifdef HAVE_XOVERLAY_H
+#  include <gst/interfaces/xoverlay.h>
+# endif
+#endif
+
+#include "Emotion.h"
 #include "emotion_gstreamer.h"
 
 typedef struct _FakeEOSBin
