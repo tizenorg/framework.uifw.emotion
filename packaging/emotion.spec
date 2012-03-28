@@ -91,7 +91,7 @@ rm -rf %{buildroot}
 
 %files devel
 %defattr(-, root, root)
-%{_includedir}/emotion-0/*.h
+%{_includedir}/*
 %{_libdir}/pkgconfig/emotion*.pc
 %{_libdir}/libemotion.so
 
