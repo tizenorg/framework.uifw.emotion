@@ -2,8 +2,8 @@ Name:             emotion
 Summary:          Media Library
 Version:          0.1.0+svn.69618slp2+build01
 Release:          1
-Group:            TO_BE/FILLED_IN
-License:          TO_BE/FILLED_IN
+Group:            System Environment/Libraries
+License:          BSD
 URL:              http://www.enlightenment.org/
 Source0:          %{name}-%{version}.tar.gz
 Requires(post):   /sbin/ldconfig
