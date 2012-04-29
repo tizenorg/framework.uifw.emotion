@@ -1,0 +1,14 @@
+Before starting tests please set and export TET_ROOT_DIR variable.
+
+It's highly recommened to add similar line at the end of your
+ ~/.bashrc file:
+export TET_ROOT_DIR=/full/path/to/tetware/dir
+
+Example:
+If user with login test placed TETware in it's home directory 
+(/home/test/TETware contains tetware-simulator and tetware-target) 
+it should add following line to .bashrc file:
+
+export TET_ROOT_DIR=/home/test/TETware
+
+and restart terminal.

@@ -1,7 +1,8 @@
 Source: emotion
 Priority: optional
 Section: libs
-Maintainer: Falko Schmidt <falko@alphagemini.org>
+Maintainer:  Jaehwan Kim <jae.hwan.kim@samsung.com>, Myoungwoon Kim <myoungwoon.kim@samsung.com>, Jeonghyun Yun <jh0506.yun@samsung.com>
+Original-Maintainer: Falko Schmidt <falko@alphagemini.org>
 Build-Depends: cdbs, debhelper (>= 6), libeet-dev, libevas-dev, libedje-dev, libecore-dev, libembryo-dev, libgstreamer0.10-dev, libgstreamer-plugins-base0.10-dev
 Standards-Version: 3.8.2
 Homepage: http://www.enlightenment.org

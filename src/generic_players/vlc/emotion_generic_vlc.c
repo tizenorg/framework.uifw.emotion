@@ -23,6 +23,7 @@
 
 enum _Thread_Events {
      EM_THREAD_POSITION_CHANGED,
+     EM_THREAD_PLAYBACK_STOPPED,
      EM_THREAD_LAST
 };
 
@@ -172,7 +173,7 @@ _send_cmd_start(struct _App *app, int cmd)
 }
 
 static void
-_send_cmd_finish(struct _App *app)
+_send_cmd_finish(struct _App *app __UNUSED__)
 {
    pthread_mutex_unlock(&_mutex_fd);
 }
@@ -214,7 +215,6 @@ _send_length_changed(struct _App *app, const struct libvlc_event_t *ev)
    float length = ev->u.media_player_length_changed.new_length;
    length /= 1000;
 
-   fprintf(stderr, "length changed: %0.3f\n", length);
    _send_cmd_start(app, EM_RESULT_LENGTH_CHANGED);
    SEND_CMD_PARAM(app, length);
    _send_cmd_finish(app);
@@ -255,12 +255,12 @@ _lock(void *data, void **pixels)
 }
 
 static void
-_unlock(void *data, void *id, void *const *pixels)
+_unlock(void *data __UNUSED__, void *id __UNUSED__, void *const *pixels __UNUSED__)
 {
 }
 
 static void
-_display(void *data, void *id)
+_display(void *data, void *id __UNUSED__)
 {
    struct _App *app = data;
    if (!app->playing)
@@ -284,12 +284,12 @@ _tmp_lock(void *data, void **pixels)
 }
 
 static void
-_tmp_unlock(void *data, void *id, void *const *pixels)
+_tmp_unlock(void *data __UNUSED__, void *id __UNUSED__, void *const *pixels __UNUSED__)
 {
 }
 
 static void
-_tmp_display(void *data, void *id)
+_tmp_display(void *data __UNUSED__, void *id __UNUSED__)
 {
 }
 
@@ -310,8 +310,8 @@ _play(struct _App *app)
    else
      {
 	libvlc_time_t new_time = pos * 1000;
-	libvlc_media_player_play(app->mp);
 	libvlc_media_player_set_time(app->mp, new_time);
+	libvlc_media_player_play(app->mp);
 	app->playing = 1;
      }
 }
@@ -368,7 +368,8 @@ _event_cb(const struct libvlc_event_t *ev, void *data)
 	 _send_file_set(app);
 	 break;
       case libvlc_MediaPlayerEndReached:
-	 _send_cmd(app, EM_RESULT_PLAYBACK_STOPPED);
+	 thread_event = EM_THREAD_PLAYBACK_STOPPED;
+	 write(app->fd_write, &thread_event, sizeof(thread_event));
 	 break;
    }
 }
@@ -523,6 +524,8 @@ _file_set_done(struct _App *app)
 		       _event_cb, app);
    libvlc_event_attach(app->event_mgr, libvlc_MediaPlayerSeekableChanged,
 		       _event_cb, app);
+   libvlc_event_attach(app->event_mgr, libvlc_MediaPlayerEndReached,
+                       _event_cb, app);
 
    libvlc_audio_set_mute(app->mp, 0);
 
@@ -685,7 +688,10 @@ _position_changed(struct _App *app)
    unsigned int w, h;
    r = libvlc_video_get_size(app->mp, 0, &w, &h);
    if (r < 0)
-     return;
+     {
+	w = 1;
+	h = 1;
+     }
    _send_resize(app, w, h);
 
    /* sending audio track info */
@@ -713,6 +719,11 @@ _process_thread_events(struct _App *app)
    switch (event) {
       case EM_THREAD_POSITION_CHANGED:
 	 _position_changed(app);
+	 break;
+      case EM_THREAD_PLAYBACK_STOPPED:
+         libvlc_media_player_stop(app->mp);
+         app->playing = 0;
+	 _send_cmd(app, EM_RESULT_PLAYBACK_STOPPED);
 	 break;
    }
 }
@@ -749,8 +760,6 @@ main(int argc, const char *argv[])
 
    app.em_read = atoi(argv[1]);
    app.em_write = atoi(argv[2]);
-
-   fprintf(stderr, "reading commands from fd: %d, writing on fd: %d\n", app.em_read, app.em_write);
 
    int vlc_argc = sizeof(vlc_argv) / sizeof(*vlc_argv);
    snprintf(cwidth, sizeof(cwidth), "%d", DEFAULTWIDTH);

@@ -243,6 +243,19 @@ typedef enum _Emotion_Aspect    Emotion_Aspect; /**< Aspect ratio option. */
 extern "C" {
 #endif
 
+#define EMOTION_VERSION_MAJOR 1
+#define EMOTION_VERSION_MINOR 0
+   
+   typedef struct _Emotion_Version
+     {
+        int major;
+        int minor;
+        int micro;
+        int revision;
+     } Emotion_Version;
+   
+   EAPI extern Emotion_Version *emotion_version;
+   
 /* api calls available */
 
 /**
@@ -632,6 +645,23 @@ EAPI void         emotion_object_position_set          (Evas_Object *obj, double
  * media file.
  */
 EAPI double       emotion_object_position_get          (const Evas_Object *obj);
+
+/**
+ * @brief Get the percentual size of the buffering cache.
+ *
+ * @param obj The emotion object from which the buffer size will be retrieved.
+ * @return The buffer percent size, ranging from 0.0 to 1.0
+ *
+ * The buffer size is returned as a number between 0.0 and 1.0, 0.0 means
+ * the buffer if empty, 1.0 means full.
+ * If no buffering is in progress 1.0 is returned. In all other cases (maybe
+ * the backend don't support buffering) 1.0 is returned, thus you can always
+ * check for buffer_size < 1.0 to know if buffering is in progress.
+ *
+ * @warning Generic backend don't implement this (will return 1.0).
+ */
+EAPI double       emotion_object_buffer_size_get       (const Evas_Object *obj);
+
 /**
  * @brief Get whether the media file is seekable.
  *
@@ -791,7 +821,7 @@ EAPI double       emotion_object_ratio_get             (const Evas_Object *obj);
  *
  * @param obj The object from which we are retrieving the video size.
  * @param iw A pointer to a variable where the width will be stored.
- * @param iw A pointer to a variable where the height will be stored.
+ * @param ih A pointer to a variable where the height will be stored.
  *
  * This function returns the reported size of the loaded video file. If a file
  * that doesn't contain a video channel is loaded, then this size can be
@@ -1199,7 +1229,7 @@ EAPI Eina_Bool    emotion_object_extension_may_play_get(const char *file);
 EAPI Evas_Object *emotion_object_image_get(const Evas_Object *obj);
 
 /**
- * @defgroup Emotion_Webcam
+ * @defgroup Emotion_Webcam API available for accessing webcam
  */
 
 typedef struct _Emotion_Webcam Emotion_Webcam; /**< Webcam description */

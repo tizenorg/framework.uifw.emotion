@@ -332,7 +332,7 @@ _player_position_changed(Emotion_Generic_Video *ev)
 
    ev->pos = position;
    _emotion_video_pos_update(ev->obj, ev->pos, ev->len);
-
+/* hmmm. no _emotion_progress_set() is for "buffering" progress.
    if (ev->len == 0)
      return;
 
@@ -341,6 +341,7 @@ _player_position_changed(Emotion_Generic_Video *ev)
    snprintf(buf, sizeof(buf), "%0.1f%%", progress * 100);
 
    _emotion_progress_set(ev->obj, buf, progress);
+ */
 }
 
 static void
@@ -829,8 +830,8 @@ _player_data_cb(void *data, int type __UNUSED__, void *event)
 
    if (ev->exe != evideo->player.exe)
      {
-        ERR("slave != ev->exe");
-	return ECORE_CALLBACK_DONE;
+	INF("slave != ev->exe");
+	return ECORE_CALLBACK_PASS_ON;
      }
 
    for (i = 0; ev->lines[i].line; i++)
@@ -848,8 +849,8 @@ _player_add_cb(void *data, int type __UNUSED__, void *event)
 
    if (ev->player.exe != player)
      {
-	ERR("ev->player != player.");
-	return ECORE_CALLBACK_DONE;
+	INF("ev->player != player.");
+	return ECORE_CALLBACK_PASS_ON;
      }
 
    _player_send_cmd(ev, EM_CMD_INIT);
@@ -861,7 +862,16 @@ _player_add_cb(void *data, int type __UNUSED__, void *event)
 static Eina_Bool
 _player_del_cb(void *data, int type __UNUSED__, void *event __UNUSED__)
 {
+   Ecore_Exe_Event_Del *event_del = event;
+   Ecore_Exe *player = event_del->exe;
    Emotion_Generic_Video *ev = data;
+
+   if (ev->player.exe != player)
+     {
+	INF("ev->player != player.");
+	return ECORE_CALLBACK_PASS_ON;
+     }
+
    ERR("player died.");
 
    ev->player.exe = NULL;
@@ -1160,6 +1170,12 @@ em_len_get(void *data)
 {
    Emotion_Generic_Video *ev = data;
    return ev->len;
+}
+
+static double
+em_buffer_size_get(void *data __UNUSED__)
+{
+   return 1.0;
 }
 
 static int
@@ -1597,6 +1613,7 @@ static Emotion_Video_Module em_module =
    em_size_get, /* size_get */
    em_pos_set, /* pos_set */
    em_len_get, /* len_get */
+   em_buffer_size_get, /* buffer_size_get */
    em_fps_num_get, /* fps_num_get */
    em_fps_den_get, /* fps_den_get */
    em_fps_get, /* fps_get */

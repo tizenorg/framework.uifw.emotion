@@ -1,12 +1,12 @@
 ##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##
 ##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##
-m4_define([v_maj], [0])
-m4_define([v_min], [2])
+m4_define([v_maj], [1])
+m4_define([v_min], [0])
 m4_define([v_mic], [0])
 m4_define([v_rev], m4_esyscmd([(svnversion "${SVN_REPO_PATH:-.}" | grep -v export || echo 0) | awk -F : '{printf("%s\n", $1);}' | tr -d ' :MSP\n']))
 m4_if(v_rev, [0], [m4_define([v_rev], m4_esyscmd([git log 2> /dev/null | (grep -m1 git-svn-id || echo 0) | sed -e 's/.*@\([0-9]*\).*/\1/' | tr -d '\n']))])
 ##--   When released, remove the dnl on the below line
-dnl m4_undefine([v_rev])
+m4_undefine([v_rev])
 ##--   When doing snapshots - change soname. remove dnl on below line
 m4_define([relname], [ver-pre-svn-07])
 m4_define([v_rel], [-release relname])
@@ -19,7 +19,7 @@ m4_define([lt_age], v_min)
 ##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##
 ##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##
 
-AC_INIT([emotion], [v_ver], [enlightenment-devel@lists.sourceforge.net])
+AC_INIT([emotion], [v_ver]-alpha, [enlightenment-devel@lists.sourceforge.net])
 AC_PREREQ([2.60])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
@@ -108,16 +108,17 @@ EFL_CHECK_DOXYGEN([build_doc="yes"], [build_doc="no"])
 
 ### Checks for libraries
 
-PKG_CHECK_MODULES(EMOTION, [eina >= 1.0.0 evas >= 1.0.0 ecore >= 1.0.0 eet >= 1.4.0])
-requirement_emotion="ecore >= 1.0.0 evas >= 1.0.0 eina >= 1.0.0 eet >= 1.4.0"
+requirement_emotion="ecore >= 1.2.0 evas >= 1.2.0 eet >= 1.6.0 eina >= 1.2.0"
+PKG_CHECK_MODULES(EMOTION, [${requirement_emotion}])
+
 
 if test "x${have_emotion_test}" = "xyes" ; then
-   PKG_CHECK_MODULES(EMOTION_BIN, [eina >= 1.0.0 evas >= 1.0.0 ecore >= 1.0.0 ecore-evas >= 1.0.0 edje >= 1.0.0])
+   PKG_CHECK_MODULES(EMOTION_BIN, [eina >= 1.2.0 evas >= 1.2.0 ecore >= 1.2.0 ecore-evas >= 1.2.0 edje >= 1.2.0])
 fi
 
-PKG_CHECK_MODULES(ECORE_X, [ecore-x >= 1.0.0 ecore-evas >= 1.0.0], [have_ecore_x="yes"], [have_ecore_x="no"])
+PKG_CHECK_MODULES(ECORE_X, [ecore-x >= 1.2.0 ecore-evas >= 1.2.0], [have_ecore_x="yes"], [have_ecore_x="no"])
 
-PKG_CHECK_MODULES(ECORE_FB, [ecore-fb >= 1.0.0], [have_ecore_fb="yes"], [have_ecore_fb="no"])
+PKG_CHECK_MODULES(ECORE_FB, [ecore-fb >= 1.2.0], [have_ecore_fb="yes"], [have_ecore_fb="no"])
 
 if test "x${have_ecore_x}" = "xyes" ; then
    AC_DEFINE(EMOTION_HAVE_ECORE_X, 1, [Define to 1 if Ecore_X is enabled])
@@ -127,13 +128,13 @@ if test "x${have_ecore_fb}" = "xyes" ; then
    AC_DEFINE(EMOTION_HAVE_ECORE_FB, 1, [Define to 1 if Ecore_Fb is enabled])
 fi
 
-PKG_CHECK_EXISTS([evas-software-x11 >= 1.0.0], [AC_DEFINE(HAVE_EVAS_SOFWARE_X11, 1, [Evas Software Xlib Engine Support])])
+PKG_CHECK_EXISTS([evas-software-x11 >= 1.2.0], [AC_DEFINE(HAVE_EVAS_SOFWARE_X11, 1, [Evas Software Xlib Engine Support])])
 
-PKG_CHECK_EXISTS([evas-xrender-x11 >= 1.0.0], [AC_DEFINE(HAVE_EVAS_XRENDER_X11, 1, [Evas Software Xlib Engine Support])])
+PKG_CHECK_EXISTS([evas-xrender-x11 >= 1.2.0], [AC_DEFINE(HAVE_EVAS_XRENDER_X11, 1, [Evas Software Xlib Engine Support])])
 
-PKG_CHECK_EXISTS([evas-opengl-x11 >= 1.0.0], [AC_DEFINE(HAVE_EVAS_OPENGL_X11, 1, [Evas OpenGL Xlib Engine Support])])
+PKG_CHECK_EXISTS([evas-opengl-x11 >= 1.2.0], [AC_DEFINE(HAVE_EVAS_OPENGL_X11, 1, [Evas OpenGL Xlib Engine Support])])
 
-PKG_CHECK_EXISTS([evas-fb >= 1.0.0], [AC_DEFINE(HAVE_EVAS_FB, 1, [Evas Framebuffer Engine Support])])
+PKG_CHECK_EXISTS([evas-fb >= 1.2.0], [AC_DEFINE(HAVE_EVAS_FB, 1, [Evas Framebuffer Engine Support])])
 
 EFL_EDJE_EXTERNAL([have_edje_external="yes"], [have_edje_external="no"])
 
@@ -144,10 +145,95 @@ if test "x${have_eeze}" = "xyes"; then
    requirement_emotion="${requirement_emotion} eeze >= 1.0.99"
 fi
 
+PKG_CHECK_MODULES([EIO], [eio >= 1.0.0], [have_eio="yes"], [have_eio="no"])
+if test "x${have_eio}" = "xyes"; then
+   AC_DEFINE(HAVE_EIO, 1, [Use EIO for asynchronous file access])
+   requirement_emotion="eio >= 1.0.0 ${requirement_emotion}"
+fi
+
+AM_CONDITIONAL([HAVE_EIO], [test "x${have_eio}" = "xyes"])
+
+# ecore-x availability, used for XV, VAAPI, VDPAU output.
+
+have_ecore_x="no"
+AC_ARG_ENABLE([ecore-x],
+   [AC_HELP_STRING([--disable-ecore-x], [disable ecore-x support. @<:@default=detect@:>@])],
+   [
+    if test "x${enableval}" = "xyes" || test "x${enableval}" = "xauto" ; then
+       want_ecore_x=${enableval}
+    else
+       want_ecore_x="no"
+    fi
+   ],
+   [want_ecore_x="auto"])
+
+if ! test "x$want_ecore_x" = "xno" ; then
+   PKG_CHECK_MODULES([ECORE_X],
+      [ecore-x >= 1.2.0],
+      [
+       AC_DEFINE(HAVE_ECORE_X, 1, [X11 support for Ecore])
+       have_ecore_x="yes"
+       requirement_elm="ecore-x >= 1.2.0 ${requirement_elm}"
+      ],
+      [have_ecore_x="no"]
+   )
+else
+    have_ecore_x="no"
+fi
+
+if test "x$want_ecore_x" = "xyes" && test "x$have_ecore_x" = "xno" ; then
+    AC_MSG_ERROR([ecore-x support requested, but not found by pkg-config.])
+fi
+
+# Check if gstreamer X Overlay is available
+build_xoverlay="no"
+if test "x${enable_gstreamer}" = "xyes" ; then
+   PKG_CHECK_MODULES([GSTREAMER_INTERFACE],
+      [gstreamer-interfaces-0.10 >= 0.10.34],
+      [build_xoverlay="yes"],
+      [build_xoverlay="no"])
+   if test "x${build_xoverlay}" = "xyes" ; then
+      save_CPPFLAGS=$CPPFLAGS
+      CPPFLAGS="$CPPFLAGS ${GSTREAMER_CFLAGS} ${GSTREAMER_INTERFACE_CFLAGS}"
+      AC_CHECK_HEADER([gst/interfaces/xoverlay.h],
+         [
+          AC_DEFINE(HAVE_XOVERLAY_H, 1, [Build with Gstreamer Xoverlay support])
+          build_xoverlay="yes"
+         ],
+         [build_xoverlay="no"])
+      CPPFLAGS=$save_CPPFLAGS
+
+      save_LDFLAGS=${LDFLAGS}
+      LDFLAGS="${LDFLAGS} ${GSTREAMER_INTERFACES}"
+      AC_CHECK_LIB([gstinterfaces-0.10],
+         [gst_x_overlay_set_window_handle],
+         [AC_DEFINE([HAVE_X_OVERLAY_SET], [1], [Use gst_x_overlay_set_window_handle instead of old deprecated gst_x_overlay_set_xwindow_id])])
+      LDFLAGS=$sava_LDFLAGS
+   fi
+fi
+
 ### Checks for header files
-AC_HEADER_STDC
 
 AC_CHECK_HEADERS([unistd.h])
+
+# Check for video4linux
+
+AC_MSG_CHECKING([for V4L2])
+AC_COMPILE_IFELSE(
+   [AC_LANG_PROGRAM(
+       [[
+#include <stdio.h>
+#include <linux/videodev2.h>
+       ]],
+       [[
+fprintf(stdout, "%i\n", V4L2_CAP_VIDEO_CAPTURE);
+       ]])],
+   [
+    AC_DEFINE(HAVE_V4L2, 1, [Define to 1 if you have Video4Linux 2 available])
+    have_v4l2="yes"
+   ],
+   [have_v4l2="no"])
+AC_MSG_RESULT([${have_v4l2}])
 
 ### Checks for types
 
@@ -156,14 +242,12 @@ AC_CHECK_HEADERS([unistd.h])
 
 
 ### Checks for compiler characteristics
-AC_C_CONST
 AC_C_BIGENDIAN
-AC_PROG_CC_STDC
 AC_C___ATTRIBUTE__
 
 EFL_EMOTION_BUILD=""
 case "$host_os" in
-   mingw32ce* | cegcc*)
+   mingw32ce*)
       EMOTION_CPPFLAGS="-D_WIN32_WCE=0x0420"
       EFL_EMOTION_BUILD="-DEFL_EMOTION_BUILD"
       ;;
@@ -182,30 +266,16 @@ AC_SUBST(EMOTION_CPPFLAGS)
 
 lt_enable_auto_import=""
 case "$host_os" in
-   mingw* | cegcc*)
+   mingw*)
       lt_enable_auto_import="-Wl,--enable-auto-import"
       ;;
 esac
 AC_SUBST(lt_enable_auto_import)
 
-### Check for video4linux
 
-AC_COMPILE_IFELSE(
-   [AC_LANG_PROGRAM(
-       [[
-#include <stdio.h>
-#include <linux/videodev2.h>
-       ]],
-       [[
-fprintf(stdout, "%i\n", V4L2_CAP_VIDEO_CAPTURE);
-       ]])],
-   [
-     AC_DEFINE(HAVE_V4L2, 1, [Define to 1 if you have Video4Linux 2 available])
-     have_v4l2="yes"
-   ],
-   [have_v4l2="no"])
-AC_MSG_CHECKING([for V4L2])
-AC_MSG_RESULT([${have_v4l2}])
+### Checks for library functions
+AC_FUNC_ALLOCA
+
 
 ### Modules
 
@@ -219,70 +289,6 @@ if test "x${enable_xine}" = "xno" && test "x${enable_gstreamer}" = "xno" && test
    AC_MSG_ERROR([Xine, Gstreamer or Generic backends must be selected to build Emotion])
 fi
 
-
-PKG_CHECK_MODULES([EIO],
-	[eio],
-	[
-	 have_eio="yes"
-	 AC_DEFINE(HAVE_EIO, 1, [Use EIO for asynchronous file access])
-	 requirement_emotion="eio ${requirement_emotion}"
-	],
-	[have_eio="no"])
-
-AM_CONDITIONAL([HAVE_EIO], [test "x${have_eio}" = "xyes"])
-
-## Check Ecore-X availability, used for XV, VAAPI, VDPAU output.
-
-have_ecore_x="no"
-want_ecore_x="auto"
-AC_ARG_ENABLE([ecore-x],
-   [AC_HELP_STRING([--disable-ecore-x], [disable ecore-x support. @<:@default=detect@:>@])],
-   [want_ecore_x=$enableval], [])
-
-if test "x$want_ecore_x" != "xno"; then
-   PKG_CHECK_MODULES([ECORE_X],
-      [ecore-x >= 1.0.0],
-      [
-       AC_DEFINE(HAVE_ECORE_X, 1, [X11 support for Ecore])
-       have_ecore_x="yes"
-       requirement_elm="ecore-x >= 1.0.0 ${requirement_elm}"
-      ],
-      [have_ecore_x="no"]
-   )
-else
-    have_ecore_x="no"
-fi
-if test "x$want_ecore_x" = "xyes" -a "x$have_ecore_x" = "xno"; then
-    AC_MSG_ERROR([ecore-x support requested, but not found by pkg-config.])
-fi
-
-## Check if gstreamer X Overlay is available
-build_xoverlay="no"
-if test "x$enable_gstreamer" = "xyes"; then
-   PKG_CHECK_MODULES([GSTREAMER_INTERFACE],
-	[ gstreamer-interfaces-0.10 >= 0.10.34 ],
-	[ build_xoverlay="yes" ],
-	[ build_xoverlay="no" ]
-   )
-   if test "x${build_xoverlay}" = "xyes"; then
-      save_CPPFLAGS=$CPPFLAGS
-      CPPFLAGS="$CPPFLAGS ${GSTREAMER_CFLAGS} ${GSTREAMER_INTERFACE_CFLAGS}"
-      AC_CHECK_HEADER([gst/interfaces/xoverlay.h],
-	[
-	  AC_DEFINE(HAVE_XOVERLAY_H, 1, [Build with Gstreamer Xoverlay support])
-	  build_xoverlay="yes"
-	], [
-     	  build_xoverlay="no"
-     	]
-      )
-      CPPFLAGS=$save_CPPFLAGS
-
-      save_LDFLAGS=$LDFLAGS
-      LDFLAGS="$LDFLAGS ${GSTREAMER_INTERFACES}"
-      AC_CHECK_LIB(gstinterfaces-0.10, gst_x_overlay_set_window_handle, AC_DEFINE(HAVE_X_OVERLAY_SET, 1, [Use gst_x_overlay_set_window_handle instead of old deprecated gst_x_overlay_set_xwindow_id]))
-      LDFLAGS=$sava_LDFLAGS
-   fi
-fi
 
 ### install and build examples
 
