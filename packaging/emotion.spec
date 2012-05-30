@@ -6,6 +6,7 @@ Group:            System Environment/Libraries
 License:          BSD
 URL:              http://www.enlightenment.org/
 Source0:          %{name}-%{version}.tar.gz
+Source1001: packaging/emotion.manifest 
 Requires(post):   /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
 BuildRequires:    pkgconfig(eet)
@@ -56,6 +57,7 @@ This package provides the gstreamer module for emotion.
 %setup -q
 
 %build
+cp %{SOURCE1001} .
 
 %autogen
 %configure --enable-static \
@@ -81,6 +83,7 @@ rm -rf %{buildroot}
 
 
 %files
+%manifest emotion.manifest
 %defattr(-,root,root,-)
 %{_libdir}/libemotion.so.*
 %{_bindir}/emotion_*
@@ -90,6 +93,7 @@ rm -rf %{buildroot}
 
 
 %files devel
+%manifest emotion.manifest
 %defattr(-, root, root)
 %{_includedir}/*
 %{_libdir}/pkgconfig/emotion*.pc
@@ -97,5 +101,6 @@ rm -rf %{buildroot}
 
 
 %files gstreamer
+%manifest emotion.manifest
 %defattr(-, root, root)
 %{_libdir}/emotion/*gstreamer*.so
