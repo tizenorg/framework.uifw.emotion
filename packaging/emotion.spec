@@ -1,18 +1,18 @@
 Name:             emotion
 Summary:          Media Library
 Version:          1.0.0+svn.70375slp2+build02
-Release:          1
+Release:          2
 Group:            System Environment/Libraries
 License:          BSD
 URL:              http://www.enlightenment.org/
 Source0:          %{name}-%{version}.tar.gz
 Requires(post):   /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
-BuildRequires:    pkgconfig(eet)
-BuildRequires:    pkgconfig(evas)
-BuildRequires:    pkgconfig(edje)
-BuildRequires:    pkgconfig(ecore)
-BuildRequires:    pkgconfig(embryo)
+BuildRequires:    eina-devel
+BuildRequires:    eet-devel
+BuildRequires:    evas-devel
+BuildRequires:    ecore-devel
+BuildRequires:    edje-devel
 BuildRequires:    edje-bin
 BuildRequires:    gstreamer-devel
 BuildRequires:    gst-plugins-base-devel
