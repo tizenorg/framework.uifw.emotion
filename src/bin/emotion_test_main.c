@@ -300,7 +300,7 @@ bg_key_down(void *data __UNUSED__, Evas *e __UNUSED__, Evas_Object *obj __UNUSED
 static void
 video_obj_time_changed(Evas_Object *obj, Evas_Object *edje)
 {
-   double pos, len, scale, bsize;
+   double pos, len, scale;
    char buf[256];
    int ph, pm, ps, pf, lh, lm, ls;
 
@@ -719,6 +719,8 @@ main(int argc, char **argv)
    evas_font_cache_set(evas, 1 * 1024 * 1024);
    evas_font_path_append(evas, PACKAGE_DATA_DIR"/data/fonts");
 
+   emotion_init();
+
    bg_setup();
 
    for (; args < argc; args++)
@@ -729,6 +731,8 @@ main(int argc, char **argv)
    ecore_main_loop_begin();
 
    main_signal_exit(NULL, 0, NULL);
+
+   emotion_shutdown();
    ecore_evas_free(ecore_evas);
    ecore_evas_shutdown();
    edje_shutdown();
