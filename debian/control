@@ -1,27 +1,30 @@
 Source: emotion
 Priority: optional
 Section: libs
-Maintainer: Falko Schmidt <falko@alphagemini.org>
-Build-Depends: cdbs, debhelper (>= 6), pkg-config, libeet-dev, libevas-dev, libedje-dev, libecore-dev, libembryo-dev, libxine-dev (>=1.1.0), libgstreamer0.10-dev, libgstreamer-plugins-base0.10-dev
-Standards-Version: 3.7.3
+Maintainer:  Jaehwan Kim <jae.hwan.kim@samsung.com>, Myoungwoon Kim <myoungwoon.kim@samsung.com>, Jeonghyun Yun <jh0506.yun@samsung.com>
+Original-Maintainer: Falko Schmidt <falko@alphagemini.org>
+Build-Depends: cdbs, debhelper (>= 6), libeet-dev, libevas-dev, libedje-dev, libecore-dev, libembryo-dev, libgstreamer0.10-dev, libgstreamer-plugins-base0.10-dev
+Standards-Version: 3.8.2
 Homepage: http://www.enlightenment.org
 
 Package: libemotion0
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}
-Provides: libemotion
+Depends: ${shlibs:Depends}, libemotion0-gstreamer
+Provides: libemotion, libemotion-bin
+Replaces: libemotion-bin
 Description: Video playback library used in Enlightenment DR0.17
  This is the emotion library, a wrapper library used in the next-generation
  Enlightenment suite for video playback.
  .
  This package contains the shared libraries.
 
-Package: libemotion-dev
+Package: libemotion0-dev
 Section: libdevel
 Architecture: any
 Depends: libemotion0 (= ${Source-Version}), libevas-dev, libecore-dev
-Provides: libemotion0-dev
+Provides: libemotion-dev
+Replaces: libemotion-dev
 Description: Headers, static libraries and documentation for Emotion
  This package contains development files for the Emotion library, a wrapper
  library used in the next-generation Enlightenment suite for video playback.
@@ -29,35 +32,14 @@ Description: Headers, static libraries and documentation for Emotion
  This package contains headers and static libraries for development with
  libemotion.
 
-Package: libemotion-xine
-Section: libs
-Architecture: any
-Depends: ${shlibs:Depends}, libemotion0, libxine1 (>=1.1.0)
-Provides: libemotion-xine
-Description: Video playback library used in Enlightenment DR0.17
- This is the emotion library, a wrapper library used in the next-generation
- Enlightenment suite for video playback.
- .
- This package provides the xine module for emotion.
-
-Package: libemotion-gstreamer
+Package: libemotion0-gstreamer
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}, libemotion0, gstreamer0.10-plugins-good
 Provides: libemotion-gstreamer
+Replaces: libemotion-gstreamer
 Description: Video playback library used in Enlightenment DR0.17
  This is the emotion library, a wrapper library used in the next-generation
  Enlightenment suite for video playback.
  . 
  This package provides the gstreamer module for emotion.
-
-Package: libemotion-bin
-Section: x11
-Architecture: any
-Depends: ${shlibs:Depends}
-Provides: libemotion0-bin
-Description: Test programs for Emotion
- This is the emotion library, a wrapper library used in the next-generation
- Enlightenment suite for video playback.
- . 
- This package contains test programs for the Emotion library.

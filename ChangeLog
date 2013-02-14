@@ -1,36 +1,60 @@
-2007-10-31  Vincent Torri  <doursse at users dot sf dot net>
+2012-04-26  Carsten Haitzler (The Rasterman)
 
-	* configure.in:
-	* src/bin/emotion_test_main.c:
-	* src/lib/Makefile.am:
-	* src/lib/emotion_private.h:
-	* src/lib/emotion_smart.c:
-	* src/modules/Makefile.am:
-	* src/modules/emotion_gstreamer.c:
-	Use ecore_plugin instead of dlfcn
-	The modules names are now "xine" and "gstreamer" (it's useless to add
-	the extension, as ecore_plugin does not need it).
-	Look for the modules in path that is pointed by the env variable
-	EMOTION_MODULES_DIR first.
-	Fix a leak in the gstreamer module
-	Remove some trailing spaces
-	Fix bug #223
+	* 1.0.0 release
 
-	add the support of URI playback. Minor fixes.
-	Fix bug #114
+2012-04-30  Jérôme Pinot
 
-2007-09-01  Vincent Torri  <doursse at users dot sf dot net>
+	* Fix build out of tree.
 
-	* src/modules/emotion_gstreamer.c: (em_file_open):
-	* src/modules/emotion_gstreamer_pipeline.c: (cb_handoff),
-	(emotion_pipeline_dvd_build), (emotion_pipeline_uri_build),
-	(emotion_pipeline_file_build), (_emotion_streams_sinks_get),
-	(_emotion_video_sink_fill), (_emotion_audio_sink_fill):
-	* src/modules/emotion_gstreamer_pipeline.h:
-	add the support of URI playback. Minor fixes.
-	Fix bug #114
+2012-05-16  Carsten Haitzler (The Rasterman)
 
-Wed Mar 29 20:33:40 2006                        Michael Jennings (mej)
+	* Fix emotion video overlay support to detect correct engine name.
 
-Xine plugins seem to no longer be built.
-----------------------------------------------------------------------
+2012-06-05  Sohyun Kim
+
+	* Add fimcconvert element to resize and convert color using fimc on device.
+
+2012-06-07  Cedric Bail
+
+	* Fix stride for all YUV video stream.
+
+2012-06-08  Pierre Le Magourou
+
+	* Add support for "playback_started" callback to generic player.
+
+2012-06-08  Hugo Camboulive
+
+	* Implement SPU switch for generic/vlc.
+
+2012-06-19  Cedric Bail
+
+	* Sync rendering with Ecore_Animator.
+
+2012-07-03  Cedric Bail
+
+	* Track pending object for proper shutdown.
+
+2012-08-01  Cedric Bail
+
+	* Fix race condition in gstreamer render function.
+
+2012-08-10  Sohyun Kim
+
+	* Fix priority set/get for gstreamer.
+
+2012-08-28  Cedric Bail
+
+	* Reset VLC pipeline on EOS.
+	* Fix a race condition on shutdown when still saving a file position.
+
+2012-08-30  Carsten Haitzler (The Rasterman)
+
+        1.7.0 release
+
+2012-09-06  Sohyun Kim
+
+	* Add capsfilter to limit format and size for fimc on device.
+
+2012-10-11  Sohyun Kim
+
+	* Fix to call correct render function based on the format.

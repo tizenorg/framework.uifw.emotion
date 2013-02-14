@@ -1,11 +1,20 @@
 /***************************************************************************/
 /***                  emotion xine display engine                        ***/
 /***************************************************************************/
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 
+#include <Eina.h>
+#include <Evas.h>
+#include <Ecore.h>
+
+#include "Emotion.h"
 #include "emotion_private.h"
 #include "emotion_xine.h"
 
@@ -60,6 +69,8 @@ struct _Emotion_Lut
    uint8_t foo   : 8;
 } __attribute__ ((packed));
 
+typedef void (*done_func_type)(void *data);
+
 /***************************************************************************/
 static void        *_emotion_class_init            (xine_t *xine, void *visual);
 static void         _emotion_class_dispose         (video_driver_class_t *driver_class);
@@ -111,16 +122,21 @@ plugin_info_t emotion_xine_plugin_info[] =
 
 /***************************************************************************/
 static void *
-_emotion_class_init(xine_t *xine, void *visual)
+_emotion_class_init(xine_t *xine, void *visual __UNUSED__)
 {
    Emotion_Class *cl;
    
-//   printf("emotion: _emotion_class_init()\n");
-   cl = (Emotion_Class *) xine_xmalloc(sizeof(Emotion_Class));
+//   DBG("");
+   cl = (Emotion_Class *) malloc(sizeof(Emotion_Class));
    if (!cl) return NULL;
    cl->driver_class.open_plugin     = _emotion_open;
+#if XINE_MAJOR_VERSION < 1 || (XINE_MAJOR_VERSION == 1 && XINE_MINOR_VERSION < 2) 
    cl->driver_class.get_identifier  = _emotion_class_identifier_get;
    cl->driver_class.get_description = _emotion_class_description_get;
+#else
+   cl->driver_class.identifier      = _emotion_class_identifier_get(NULL);
+   cl->driver_class.description     = _emotion_class_description_get(NULL);
+#endif
    cl->driver_class.dispose         = _emotion_class_dispose;
    cl->config                       = xine->config;
    cl->xine                         = xine;
@@ -138,20 +154,14 @@ _emotion_class_dispose(video_driver_class_t *driver_class)
 }
 
 static char *
-_emotion_class_identifier_get(video_driver_class_t *driver_class)
+_emotion_class_identifier_get(video_driver_class_t *driver_class __UNUSED__)
 {
-   Emotion_Class *cl;
-   
-   cl = (Emotion_Class *)driver_class;
    return "emotion";
 }
 
 static char *
-_emotion_class_description_get(video_driver_class_t *driver_class)
+_emotion_class_description_get(video_driver_class_t *driver_class __UNUSED__)
 {
-   Emotion_Class *cl;
-   
-   cl = (Emotion_Class *)driver_class;
    return "Emotion xine video output plugin";
 }
 
@@ -164,8 +174,8 @@ _emotion_open(video_driver_class_t *driver_class, const void *visual)
    
    cl = (Emotion_Class *)driver_class;
    /* visual here is the data ptr passed to xine_open_video_driver() */
-//   printf("emotion: _emotion_open()\n");
-   dv = (Emotion_Driver *)xine_xmalloc(sizeof(Emotion_Driver));
+//   DBG("");
+   dv = (Emotion_Driver *)malloc(sizeof(Emotion_Driver));
    if (!dv) return NULL;
    
    dv->config                         = cl->config;
@@ -186,7 +196,7 @@ _emotion_open(video_driver_class_t *driver_class, const void *visual)
    dv->vo_driver.redraw_needed        = _emotion_redraw;
    dv->ev                             = (Emotion_Xine_Video *)visual;
    dv->ev->have_vo = 1;
-   printf("emotion: _emotion_open = %p\n", &dv->vo_driver);
+   DBG("vo_driver = %p", &dv->vo_driver);
    return &dv->vo_driver;
 }    
 
@@ -197,40 +207,31 @@ _emotion_dispose(vo_driver_t *vo_driver)
    
    dv = (Emotion_Driver *)vo_driver;
    dv->ev->have_vo = 0;
-   printf("emotion: _emotion_dispose(%p)\n", dv);
+   DBG("vo_driver = %p", dv);
    free(dv);
 }
 
 /***************************************************************************/
 static int
-_emotion_redraw(vo_driver_t *vo_driver)
+_emotion_redraw(vo_driver_t *vo_driver __UNUSED__)
 {
-   Emotion_Driver *dv;
-   
-   dv = (Emotion_Driver *)vo_driver;
-//   printf("emotion: _emotion_redraw()\n");
+//   DBG("");
    return 0;
 }
 
 /***************************************************************************/
 static uint32_t
-_emotion_capabilities_get(vo_driver_t *vo_driver)
+_emotion_capabilities_get(vo_driver_t *vo_driver __UNUSED__)
 {
-   Emotion_Driver *dv;
-   
-   dv = (Emotion_Driver *)vo_driver;
-//   printf("emotion: _emotion_capabilities_get()\n");
+//   DBG("");
    return VO_CAP_YV12 | VO_CAP_YUY2;
 }
 
 /***************************************************************************/
 static int
-_emotion_gui_data_exchange(vo_driver_t *vo_driver, int data_type, void *data)
+_emotion_gui_data_exchange(vo_driver_t *vo_driver __UNUSED__, int data_type, void *data __UNUSED__)
 {
-   Emotion_Driver *dv;
-   
-   dv = (Emotion_Driver *)vo_driver;
-//   printf("emotion: _emotion_gui_data_exchange()\n");
+//   DBG("");
    switch (data_type)
      {
       case XINE_GUI_SEND_COMPLETION_EVENT:
@@ -258,13 +259,13 @@ _emotion_property_set(vo_driver_t *vo_driver, int property, int value)
    Emotion_Driver *dv;
    
    dv = (Emotion_Driver *)vo_driver;
-//   printf("emotion: _emotion_property_set()\n");
+//   DBG("");
    switch (property)
      {
       case VO_PROP_ASPECT_RATIO:
 	if (value >= XINE_VO_ASPECT_NUM_RATIOS)
 	  value = XINE_VO_ASPECT_AUTO;
-//	printf("DRIVER RATIO SET %i!\n", value);
+//	DBG("DRIVER RATIO SET %i!", value);
 	dv->ratio = value;
 	break;
       default:
@@ -279,7 +280,7 @@ _emotion_property_get(vo_driver_t *vo_driver, int property)
    Emotion_Driver *dv;
    
    dv = (Emotion_Driver *)vo_driver;
-//   printf("emotion: _emotion_property_get()\n");
+//   DBG("");
    switch (property)
      {
       case VO_PROP_ASPECT_RATIO:
@@ -292,26 +293,21 @@ _emotion_property_get(vo_driver_t *vo_driver, int property)
 }
 
 static void
-_emotion_property_min_max_get(vo_driver_t *vo_driver, int property, int *min, int *max)
+_emotion_property_min_max_get(vo_driver_t *vo_driver __UNUSED__, int property __UNUSED__, int *min, int *max)
 {
-   Emotion_Driver *dv;
-   
-   dv = (Emotion_Driver *)vo_driver;
-//   printf("emotion: _emotion_property_min_max_get()\n");
+//   DBG("");
    *min = 0;
    *max = 0;
 }
 
 /***************************************************************************/
 static vo_frame_t *
-_emotion_frame_alloc(vo_driver_t *vo_driver)
+_emotion_frame_alloc(vo_driver_t *vo_driver __UNUSED__)
 {
-   Emotion_Driver *dv;
    Emotion_Frame *fr;
    
-   dv = (Emotion_Driver *)vo_driver;
-//   printf("emotion: _emotion_frame_alloc()\n");
-   fr = (Emotion_Frame *)xine_xmalloc(sizeof(Emotion_Frame));
+//   DBG("");
+   fr = (Emotion_Frame *)calloc(1, sizeof(Emotion_Frame));
    if (!fr) return NULL;
    
    fr->vo_frame.base[0]    = NULL;
@@ -333,13 +329,13 @@ _emotion_frame_dispose(vo_frame_t *vo_frame)
    Emotion_Frame *fr;
    
    fr = (Emotion_Frame *)vo_frame;
-//   printf("emotion: _emotion_frame_dispose()\n");
+//   DBG("");
    _emotion_frame_data_free(fr);  
    free(fr);
 }
 
 static void
-_emotion_frame_format_update(vo_driver_t *vo_driver, vo_frame_t *vo_frame, uint32_t width, uint32_t height, double ratio, int format, int flags)
+_emotion_frame_format_update(vo_driver_t *vo_driver, vo_frame_t *vo_frame, uint32_t width, uint32_t height, double ratio, int format, int flags __UNUSED__)
 {
    Emotion_Driver *dv;
    Emotion_Frame *fr;
@@ -347,10 +343,10 @@ _emotion_frame_format_update(vo_driver_t *vo_driver, vo_frame_t *vo_frame, uint3
    dv = (Emotion_Driver *)vo_driver;
    fr = (Emotion_Frame *)vo_frame;
    
-   if ((fr->width != width) ||  (fr->height != height) || 
+   if ((fr->width != (int)width) ||  (fr->height != (int)height) || 
        (fr->format != format) || (!fr->vo_frame.base[0]))
      {
-//	printf("emotion: _emotion_frame_format_update()\n");
+//   DBG("");
 	_emotion_frame_data_free(fr);
 	
 	fr->width  = width;
@@ -415,12 +411,12 @@ _emotion_frame_format_update(vo_driver_t *vo_driver, vo_frame_t *vo_frame, uint3
 	     break;
 	  }
 	if (((format == XINE_IMGFMT_YV12)
-	     && ((fr->vo_frame.base[0] == NULL)
-		 || (fr->vo_frame.base[1] == NULL)
-		 || (fr->vo_frame.base[2] == NULL)))
+	     && ((!fr->vo_frame.base[0])
+		 || (!fr->vo_frame.base[1])
+		 || (!fr->vo_frame.base[2])))
 	    || ((format == XINE_IMGFMT_YUY2)
-		&& ((fr->vo_frame.base[0] == NULL)
-		    || (fr->frame.bgra_data == NULL))))
+		&& ((!fr->vo_frame.base[0])
+		    || (!fr->frame.bgra_data))))
 	  {
 	     _emotion_frame_data_free(fr);
 	  }
@@ -437,15 +433,13 @@ _emotion_frame_display(vo_driver_t *vo_driver, vo_frame_t *vo_frame)
    
    dv = (Emotion_Driver *)vo_driver;
    fr = (Emotion_Frame *)vo_frame;
-//   printf("emotion: _emotion_frame_display()\n");
-//   printf("EX VO: fq %i %p\n", dv->ev->fq, dv->ev);
+//   DBG("fq %i %p", dv->ev->fq, dv->ev);
 // if my frame queue is too deep ( > 4 frames) simply block and wait for them
 // to drain
 //   while (dv->ev->fq > 4) usleep(1);
    if (dv->ev)
      {
 	void *buf;
-	int ret;
 
 	if (dv->ev->closing) return;
 	if (fr->format == XINE_IMGFMT_YUY2)
@@ -455,11 +449,11 @@ _emotion_frame_display(vo_driver_t *vo_driver, vo_frame_t *vo_frame)
 	
 	buf = &(fr->frame);
 	fr->frame.timestamp = (double)fr->vo_frame.vpts / 90000.0;
-	fr->frame.done_func = _emotion_frame_data_unlock;
+	fr->frame.done_func = (done_func_type)_emotion_frame_data_unlock;
 	fr->frame.done_data = fr;
-//	printf("FRAME FOR %p\n", dv->ev);
-	ret = write(dv->ev->fd_write, &buf, sizeof(void *));
-//	printf("-- FRAME DEC %p == %i\n", fr->frame.obj, ret);
+//	DBG("FRAME FOR %p", dv->ev);
+	if (write(dv->ev->fd_write, &buf, sizeof(void *)) < 0) perror("write");
+//	DBG("-- FRAME DEC %p == %i", fr->frame.obj, ret);
 	fr->in_use = 1;
 	dv->ev->fq++;
      }
@@ -468,12 +462,9 @@ _emotion_frame_display(vo_driver_t *vo_driver, vo_frame_t *vo_frame)
 }
 
 static void
-_emotion_frame_field(vo_frame_t *vo_frame, int which_field)
+_emotion_frame_field(vo_frame_t *vo_frame __UNUSED__, int which_field __UNUSED__)
 {
-   Emotion_Frame *fr;
-   
-   fr = (Emotion_Frame *)vo_frame;
-//   printf("emotion: _emotion_frame_field()\n");
+//   DBG("");
 }
 
 /***************************************************************************/
@@ -500,7 +491,7 @@ _emotion_frame_data_free(Emotion_Frame *fr)
 static void
 _emotion_frame_data_unlock(Emotion_Frame *fr)
 {
-//   printf("emotion: _emotion_frame_data_unlock()\n");
+//   DBG("");
    if (fr->in_use)
      {
 	fr->vo_frame.free(&fr->vo_frame);
@@ -510,36 +501,24 @@ _emotion_frame_data_unlock(Emotion_Frame *fr)
 
 /***************************************************************************/
 static void
-_emotion_overlay_begin(vo_driver_t *vo_driver, vo_frame_t *vo_frame, int changed)
+_emotion_overlay_begin(vo_driver_t *vo_driver __UNUSED__, vo_frame_t *vo_frame __UNUSED__, int changed __UNUSED__)
 {
-   Emotion_Driver *dv;
-   Emotion_Frame *fr;
-   
-   dv = (Emotion_Driver *)vo_driver;
-   fr = (Emotion_Frame *)vo_frame;
-//   printf("emotion: _emotion_overlay_begin()\n");
+//   DBG("");
 }
 
 static void
-_emotion_overlay_end(vo_driver_t *vo_driver, vo_frame_t *vo_frame)
+_emotion_overlay_end(vo_driver_t *vo_driver __UNUSED__, vo_frame_t *vo_frame __UNUSED__)
 {
-   Emotion_Driver *dv;
-   Emotion_Frame *fr;
-   
-   dv = (Emotion_Driver *)vo_driver;
-   fr = (Emotion_Frame *)vo_frame;
-//   printf("emotion: _emotion_overlay_end()\n");
+//   DBG("");
 }
 
 static void
-_emotion_overlay_blend(vo_driver_t *vo_driver, vo_frame_t *vo_frame, vo_overlay_t *vo_overlay)
+_emotion_overlay_blend(vo_driver_t *vo_driver __UNUSED__, vo_frame_t *vo_frame, vo_overlay_t *vo_overlay __UNUSED__)
 {
-   Emotion_Driver *dv;
    Emotion_Frame *fr;
    
-   dv = (Emotion_Driver *)vo_driver;
    fr = (Emotion_Frame *)vo_frame;
-//   printf("emotion: _emotion_overlay_blend()\n");
+//   DBG("");
    _emotion_overlay_blend_yuv(fr->vo_frame.base, vo_overlay,
 			      fr->width, fr->height, 
 			      fr->vo_frame.pitches);

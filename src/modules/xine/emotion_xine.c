@@ -1,6 +1,16 @@
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include <Eina.h>
+#include <Evas.h>
+#include <Ecore.h>
+
 #include "Emotion.h"
 #include "emotion_private.h"
 #include "emotion_xine.h"
+
+int _emotion_xine_log_domain = -1;
 
 /* module api */
 static unsigned char  em_init                    (Evas_Object *obj, void **emotion_video, Emotion_Module_Options *opt);
@@ -11,13 +21,15 @@ static void           em_play                    (void *ef, double pos);
 static void           em_stop                    (void *ef);
 static void           em_size_get                (void *ef, int *w, int *h);
 static void           em_pos_set                 (void *ef, double pos);
-static void           em_vis_set                 (void *ef, Emotion_Vis vis);
+static double         em_buffer_size_get         (void *ef);
 static double         em_len_get                 (void *ef);
 static int            em_fps_num_get             (void *ef);
 static int            em_fps_den_get             (void *ef);
 static double         em_fps_get                 (void *ef);
 static double         em_pos_get                 (void *ef);
+static void           em_vis_set                 (void *ef, Emotion_Vis vis);
 static Emotion_Vis    em_vis_get                 (void *ef);
+static Eina_Bool      em_vis_supported           (void *ef, Emotion_Vis vis);
 static double         em_ratio_get               (void *ef);
 static int            em_seekable                (void *ef);
 static void           em_frame_done              (void *ef);
@@ -60,10 +72,10 @@ static const char    *em_meta_get                (void *ef, int meta);
 /* internal util calls */
 static void *_em_slave         (void *par);
 static void  _em_slave_event   (void *data, int type, void *arg);
-static int   _em_fd_active     (void *data, Ecore_Fd_Handler *fdh);
+static Eina_Bool   _em_fd_active     (void *data, Ecore_Fd_Handler *fdh);
 static void  _em_event         (void *data, const xine_event_t *event);
 static void  _em_module_event  (void *data, int type);
-static int   _em_fd_ev_active  (void *data, Ecore_Fd_Handler *fdh);
+static Eina_Bool   _em_fd_ev_active  (void *data, Ecore_Fd_Handler *fdh);
 //static int   _em_timer         (void *data);
 static void *_em_get_pos_len_th(void *par);
 static void  _em_get_pos_len   (Emotion_Xine_Video *ev);
@@ -111,11 +123,11 @@ _em_slave(void *par)
 				 xine_config_update_entry(ev->decoder, &cf);
 			      }
 			 }
-		       printf("OPEN VIDEO PLUGIN...\n");
+		       DBG("OPEN VIDEO PLUGIN...");
 		       if (!ev->opt_no_video)
 			 ev->video = xine_open_video_driver(ev->decoder, "emotion",
 							    XINE_VISUAL_TYPE_NONE, ev);
-		       printf("RESULT: xine_open_video_driver() = %p\n", ev->video);
+		       DBG("RESULT: xine_open_video_driver() = %p", ev->video);
 		       // Let xine autodetect the best audio output driver
 		       if (!ev->opt_no_audio)
 			 ev->audio = xine_open_audio_driver(ev->decoder, NULL, ev);
@@ -135,31 +147,31 @@ _em_slave(void *par)
 		case 3: /* shutdown */
 		    {
 		       _em_module_event(ev, 3);
-		       printf("EX shutdown stop\n");
+		       DBG("shutdown stop");
 		       xine_stop(ev->stream);
 		       //   pthread_mutex_lock(&(ev->get_pos_len_mutex));
 		       if (!ev->get_pos_thread_deleted)
 			 {
-			    printf("closing get_pos thread, %p\n", ev);
+			    DBG("closing get_pos thread, %p", ev);
 			    pthread_mutex_lock(&(ev->get_pos_len_mutex));
 			    pthread_cond_broadcast(&(ev->get_pos_len_cond));
 			    pthread_mutex_unlock(&(ev->get_pos_len_mutex));
 			    while (ev->get_poslen);
 			 }
-		       printf("EX dispose %p\n", ev);
+		       DBG("dispose %p", ev);
 		       xine_dispose(ev->stream);
-		       printf("EX dispose evq %p\n", ev);
+		       DBG("dispose evq %p", ev);
 		       xine_event_dispose_queue(ev->queue);
-		       printf("EX close video drv %p\n", ev);
+		       DBG("close video drv %p", ev);
 		       if (ev->video) xine_close_video_driver(ev->decoder, ev->video);
-		       printf("EX wait for vo to go\n");
+		       DBG("wait for vo to go");
 		       while (ev->have_vo);
-		       printf("EX vo gone\n");
-		       printf("EX close audio drv %p\n", ev);
+		       DBG("vo gone");
+		       DBG("close audio drv %p", ev);
 		       if (ev->audio) xine_close_audio_driver(ev->decoder, ev->audio);
-		       printf("EX xine exit %p\n", ev);
+		       DBG("xine exit %p", ev);
 		       xine_exit(ev->decoder);
-		       printf("EX DONE %p\n", ev);
+		       DBG("DONE %p", ev);
 		       close(ev->fd_write);
 		       close(ev->fd_read);
 		       close(ev->fd_ev_write);
@@ -182,7 +194,7 @@ _em_slave(void *par)
 		       char *file;
 		       
 		       file = eev->xine_event;
-		       printf("OPN STREAM %s\n", file);
+		       DBG("OPEN STREAM %s", file);
 		       if (xine_open(ev->stream, file))
 			 {
 			    if (xine_get_pos_length(ev->stream, &pos_stream, &pos_time, &length_time))
@@ -214,19 +226,20 @@ _em_slave(void *par)
 			    ev->ratio = (double)v / 10000.0;
 			    ev->just_loaded = 1;
 			    ev->get_poslen = 0;
+			    xine_set_param(ev->stream, XINE_PARAM_AUDIO_VOLUME, ev->volume * 100);
 			 }
 		       _em_module_event(ev, 2); /* event - open done */
 		    }
 		  break;
 		case 11: /* file close */
 		    {
-		       printf("EX done %p\n", ev);
+		       DBG("done %p", ev);
 		       em_frame_done(ev); 
-		       printf("EX stop %p\n", ev);
+		       DBG("stop %p", ev);
 		       xine_stop(ev->stream);
-		       printf("EX close %p\n", ev);
+		       DBG("close %p", ev);
 		       xine_close(ev->stream);
-		       printf("EX close done %p\n", ev);
+		       DBG("close done %p", ev);
 		       _em_module_event(ev, 11);
 		    }
 		  break;
@@ -282,16 +295,12 @@ _em_slave(void *par)
 		       double pos;
 		       
 		       pos = *((double *)eev->xine_event);
-		       if (ev->seeked_pos != ev->seek_to_pos)
-			 {
-			    if (ev->no_time)
-			      xine_play(ev->stream, pos * 65535, 0);
-			    else
-			      xine_play(ev->stream, 0, pos * 1000);
-			    if (!ev->play)
-			      xine_set_param(ev->stream, XINE_PARAM_SPEED, XINE_SPEED_PAUSE);
-			    ev->seeked_pos = ev->seek_to_pos;
-			 }
+		       if (ev->no_time)
+			 xine_play(ev->stream, pos * 65535, 0);
+		       else
+			 xine_play(ev->stream, 0, pos * 1000);
+		       if (!ev->play)
+			 xine_set_param(ev->stream, XINE_PARAM_SPEED, XINE_SPEED_PAUSE);
 		       _em_module_event(ev, 6);
 		    }
 		  break;
@@ -315,12 +324,7 @@ _em_slave(void *par)
 		  break;
 		case 10: /* vol */
 		    {
-		       double vol;
-		       
-		       vol = *((double *)eev->xine_event);
-		       if (vol < 0.0) vol = 0.0;
-		       if (vol > 1.0) vol = 1.0;
-		       xine_set_param(ev->stream, XINE_PARAM_AUDIO_VOLUME, vol * 100);
+		       xine_set_param(ev->stream, XINE_PARAM_AUDIO_VOLUME, ev->volume * 100);
 		       _em_module_event(ev, 10);
 		    }
 		  break;
@@ -363,7 +367,7 @@ _em_slave_event(void *data, int type, void *arg)
    new_ev->xine_event = arg;
    buf[0] = data;
    buf[1] = new_ev;
-   write(ev->fd_slave_write, buf, sizeof(buf));
+   if (write(ev->fd_slave_write, buf, sizeof(buf)) < 0) perror("write");
 }
 
 static unsigned char
@@ -403,6 +407,7 @@ em_init(Evas_Object *obj, void **emotion_video, Emotion_Module_Options *opt)
 	ev->fd_slave_write = fds[1];
 	fcntl(ev->fd_slave_write, F_SETFL, O_NONBLOCK);
      }
+   ev->volume = 0.8;
    ev->delete_me = 0;
    ev->get_pos_thread_deleted = 0;
    ev->opening = 1;
@@ -421,6 +426,8 @@ em_init(Evas_Object *obj, void **emotion_video, Emotion_Module_Options *opt)
    pthread_create(&ev->slave_th, NULL, _em_slave, ev);
    pthread_detach(ev->slave_th);
    _em_slave_event(ev, 1, NULL);
+
+   ev->buffer = 1.0;
    
    *emotion_video = ev;
    return 1;
@@ -434,18 +441,25 @@ em_shutdown(void *ef)
    ev = (Emotion_Xine_Video *)ef;
    ev->closing = 1;
    ev->delete_me = 1;
-   printf("EXM del fds %p\n", ev);
+   DBG("del fds %p", ev);
    ecore_main_fd_handler_del(ev->fd_handler);
+   ev->fd_handler = NULL;
    ecore_main_fd_handler_del(ev->fd_ev_handler);
+   ev->fd_ev_handler = NULL;
+   if (ev->anim)
+     {
+        ecore_animator_del(ev->anim);
+        ev->anim = NULL;
+     }
    
    ev->closing = 1;
    _em_slave_event(ev, 3, NULL);
-   printf("EXM done %p\n", ev);
+   DBG("done %p", ev);
    return 1;
 }
 
 static unsigned char
-em_file_open(const char *file, Evas_Object *obj, void *ef)
+em_file_open(const char *file, Evas_Object *obj __UNUSED__, void *ef)
 {
    Emotion_Xine_Video *ev;
 
@@ -507,22 +521,9 @@ em_pos_set(void *ef, double pos)
    double *ppos;
    
    ev = (Emotion_Xine_Video *)ef;
-   if (pos == ev->seek_to_pos) return;
    ppos = malloc(sizeof(double));
    *ppos = pos;
-   ev->seek_to_pos = pos;
    _em_slave_event(ev, 6, ppos);
-}
-
-static void
-em_vis_set(void       *ef,
-	   Emotion_Vis vis)
-{
-   Emotion_Xine_Video *ev;
-   
-   ev = (Emotion_Xine_Video *)ef;
-   if (ev->vis == vis) return;
-   ev->vis = vis;
 }
 
 static double
@@ -532,6 +533,15 @@ em_len_get(void *ef)
    
    ev = (Emotion_Xine_Video *)ef;
    return ev->len;
+}
+
+static double
+em_buffer_size_get(void *ef)
+{
+   Emotion_Xine_Video *ev;
+   
+   ev = (Emotion_Xine_Video *)ef;
+   return ev->buffer;
 }
 
 static int
@@ -544,11 +554,8 @@ em_fps_num_get(void *ef)
 }
 
 static int
-em_fps_den_get(void *ef)
+em_fps_den_get(void *ef __UNUSED__)
 {
-   Emotion_Xine_Video *ev;
-   
-   ev = (Emotion_Xine_Video *)ef;
    return 10000;
 }
 
@@ -567,7 +574,18 @@ em_pos_get(void *ef)
    Emotion_Xine_Video *ev;
    
    ev = (Emotion_Xine_Video *)ef;
+   _em_get_pos_len(ev);
    return ev->pos;
+}
+
+static void
+em_vis_set(void *ef, Emotion_Vis vis)
+{
+   Emotion_Xine_Video *ev;
+   
+   ev = (Emotion_Xine_Video *)ef;
+   if (ev->vis == vis) return;
+   ev->vis = vis;
 }
 
 static Emotion_Vis
@@ -578,6 +596,12 @@ em_vis_get(void *ef)
    ev = (Emotion_Xine_Video *)ef;
 
    return ev->vis;
+}
+
+static Eina_Bool
+em_vis_supported(void *ef __UNUSED__, Emotion_Vis vis __UNUSED__)
+{
+   return EINA_FALSE;
 }
 
 static double
@@ -667,7 +691,7 @@ em_video_data_size_get(void *ef, int *w, int *h)
 }
 
 static int
-em_yuv_rows_get(void *ef, int w, int h, unsigned char **yrows, unsigned char **urows, unsigned char **vrows)
+em_yuv_rows_get(void *ef, int w __UNUSED__, int h, unsigned char **yrows, unsigned char **urows, unsigned char **vrows)
 {
    Emotion_Xine_Video *ev;
    volatile Emotion_Xine_Video_Frame *fr;
@@ -810,7 +834,7 @@ em_event_feed(void *ef, int event)
 }
 
 static void
-em_event_mouse_button_feed(void *ef, int button, int x, int y)
+em_event_mouse_button_feed(void *ef, int button __UNUSED__, int x, int y)
 {
    Emotion_Xine_Video *ev;
    xine_event_t xine_event;
@@ -885,11 +909,8 @@ em_video_channel_get(void *ef)
 }
 
 static const char *
-em_video_channel_name_get(void *ef, int channel)
+em_video_channel_name_get(void *ef __UNUSED__, int channel __UNUSED__)
 {
-   Emotion_Xine_Video *ev;
-   
-   ev = (Emotion_Xine_Video *)ef;
    return NULL;
 }
 
@@ -978,12 +999,13 @@ static void
 em_audio_channel_volume_set(void *ef, double vol)
 {
    Emotion_Xine_Video *ev;
-   double *ppos;
    
+   if (vol < 0.0) vol = 0.0;
+   else if (vol > 1.0) vol = 1.0;
+
    ev = (Emotion_Xine_Video *)ef;
-   ppos = malloc(sizeof(double));
-   *ppos = vol;
-   _em_slave_event(ev, 10, ppos);
+   ev->volume = vol;
+   _em_slave_event(ev, 10, NULL);
 }
 
 static double
@@ -992,8 +1014,9 @@ em_audio_channel_volume_get(void *ef)
    Emotion_Xine_Video *ev;
    
    ev = (Emotion_Xine_Video *)ef;
-   if (ev->opening || (!ev->play_ok)) return 0;
-   return (double)xine_get_param(ev->stream, XINE_PARAM_AUDIO_VOLUME) / 100.0;
+   if (ev->opening || (!ev->play_ok)) return ev->volume;
+   ev->volume = xine_get_param(ev->stream, XINE_PARAM_AUDIO_VOLUME) / 100.0;
+   return ev->volume;
 }
 
 static int
@@ -1072,45 +1095,30 @@ em_chapter_count(void *ef)
 }
 
 static void
-em_chapter_set(void *ef, int chapter)
+em_chapter_set(void *ef __UNUSED__, int chapter __UNUSED__)
 {
-   Emotion_Xine_Video *ev;
-   
-   ev = (Emotion_Xine_Video *)ef;
 }
 
 static int
-em_chapter_get(void *ef)
+em_chapter_get(void *ef __UNUSED__)
 {
-   Emotion_Xine_Video *ev;
-   
-   ev = (Emotion_Xine_Video *)ef;
    return 0;
 }
 
 static const char *
-em_chapter_name_get(void *ef, int chapter)
+em_chapter_name_get(void *ef __UNUSED__, int chapter __UNUSED__)
 {
-   Emotion_Xine_Video *ev;
-   
-   ev = (Emotion_Xine_Video *)ef;
    return NULL;
 }
 
 static void
-em_speed_set(void *ef, double speed)
+em_speed_set(void *ef __UNUSED__, double speed __UNUSED__)
 {
-   Emotion_Xine_Video *ev;
-   
-   ev = (Emotion_Xine_Video *)ef;
 }
 
 static double
-em_speed_get(void *ef)
+em_speed_get(void *ef __UNUSED__)
 {
-   Emotion_Xine_Video *ev;
-   
-   ev = (Emotion_Xine_Video *)ef;
    return 1.0;
 }
 
@@ -1160,20 +1168,20 @@ em_meta_get(void *ef, int meta)
    return NULL;
 }
 
-static int
+static Eina_Bool
 _em_fd_active(void *data, Ecore_Fd_Handler *fdh)
 {
    void *buf;
    int fd, len;
    Emotion_Xine_Video_Frame *fr;
-   Emotion_Xine_Video *ev;
    
-   ev = data;
    fd = ecore_main_fd_handler_fd_get(fdh);
    while ((len = read(fd, &buf, sizeof(buf))) > 0)
      {
 	if (len == sizeof(buf))
 	  {
+	     Emotion_Xine_Video *ev;
+
 	     fr = buf;
 	     ev = _emotion_video_get(fr->obj);
 	     if (ev)
@@ -1192,7 +1200,8 @@ _em_fd_active(void *data, Ecore_Fd_Handler *fdh)
 	       }
 	  }
      }
-   return 1;
+   return EINA_TRUE;
+   data = NULL;
 }
 
 static void
@@ -1219,7 +1228,7 @@ _em_event(void *data, const xine_event_t *event)
      }
    buf[0] = data;
    buf[1] = new_ev;
-   write(ev->fd_ev_write, buf, sizeof(buf));
+   if (write(ev->fd_ev_write, buf, sizeof(buf)) < 0) perror("write");
 }
 
 static void
@@ -1236,22 +1245,31 @@ _em_module_event(void *data, int type)
    new_ev->type = -1;
    buf[0] = data;
    buf[1] = new_ev;
-   write(ev->fd_ev_write, buf, sizeof(buf));
+   if (write(ev->fd_ev_write, buf, sizeof(buf)) < 0) perror("write");
 }
 
-static int
-_em_fd_ev_active(void *data, Ecore_Fd_Handler *fdh)
+static Eina_Bool
+_em_audio_only_poller(void *data)
 {
    Emotion_Xine_Video *ev;
-   int fd, len;
-   void *buf[2];
    
    ev = data;
+   _em_get_pos_len(ev);
+   return EINA_TRUE;
+}
+
+static Eina_Bool
+_em_fd_ev_active(void *data __UNUSED__, Ecore_Fd_Handler *fdh)
+{
+   int fd, len;
+   void *buf[2];
+
    fd = ecore_main_fd_handler_fd_get(fdh);
    while ((len = read(fd, buf, sizeof(buf))) > 0)
      {
 	if (len == sizeof(buf))
 	  {
+	     Emotion_Xine_Video *ev;
 	     Emotion_Xine_Event *eev;
 	     
 	     ev = buf[0];
@@ -1265,20 +1283,56 @@ _em_fd_ev_active(void *data, Ecore_Fd_Handler *fdh)
 		       break;
 		     case 2: /* open done */
 		       ev->play_ok = 1;
+                       if (ev->anim)
+                         {
+                            ecore_animator_del(ev->anim);
+                            ev->anim = NULL;
+                         }
+                       _emotion_open_done(ev->obj);
+		       _emotion_frame_resize(ev->obj, ev->w, ev->h, ev->ratio);
 		       break;
 		     case 3: /* shutdown done */
+                       if (ev->anim)
+                         {
+                            ecore_animator_del(ev->anim);
+                            ev->anim = NULL;
+                         }
 		       ev->play_ok = 1;
 		       break;
 		     case 4: /* play done */
 		       ev->play_ok = 1;
+                       if (ev->anim)
+                         {
+                            ecore_animator_del(ev->anim);
+                            ev->anim = NULL;
+                         }
+                       if ((!(xine_get_stream_info(ev->stream, XINE_STREAM_INFO_HAS_VIDEO) &&
+                              xine_get_stream_info(ev->stream, XINE_STREAM_INFO_VIDEO_HANDLED))) &&
+                           (xine_get_stream_info(ev->stream, XINE_STREAM_INFO_HAS_AUDIO) &&
+                               xine_get_stream_info(ev->stream, XINE_STREAM_INFO_AUDIO_HANDLED)))
+                          ev->anim = ecore_animator_add(_em_audio_only_poller, ev);
+                       _emotion_playback_started(ev->obj);
 		       break;
 		     case 5: /* stop done */
+                       if (ev->anim)
+                         {
+                            ecore_animator_del(ev->anim);
+                            ev->anim = NULL;
+                         }
 		       ev->play_ok = 1;
 		       break;
 		     case 6: /* seek done */
 		       ev->play_ok = 1;
+                       _emotion_seek_done(ev->obj);
+                       _em_get_pos_len(ev);
+                       _emotion_video_pos_update(ev->obj, ev->pos, ev->len);
 		       break;
 		     case 7: /* eject done */
+                       if (ev->anim)
+                         {
+                            ecore_animator_del(ev->anim);
+                            ev->anim = NULL;
+                         }
 		       ev->play_ok = 1;
 		       break;
 		     case 8: /* spu mute done */
@@ -1291,8 +1345,20 @@ _em_fd_ev_active(void *data, Ecore_Fd_Handler *fdh)
 		       ev->play_ok = 1;
 		       break;
 		     case 11: /* close done */
+                       if (ev->anim)
+                         {
+                            ecore_animator_del(ev->anim);
+                            ev->anim = NULL;
+                         }
 		       ev->play_ok = 1;
 		       break;
+                     case 15: /* get pos done */
+                       if (ev->last_pos != ev->pos)
+                         {
+                            ev->last_pos = ev->pos;
+                            _emotion_video_pos_update(ev->obj, ev->pos, ev->len);
+                         }
+                       break;
 		     default:
 		       break;
 		    }
@@ -1322,29 +1388,18 @@ _em_fd_ev_active(void *data, Ecore_Fd_Handler *fdh)
 			 }
 		       break;
 		     case XINE_EVENT_FRAME_FORMAT_CHANGE:
-			 {
-			    xine_format_change_data_t *e;
-			    
-			    e = (xine_format_change_data_t *)eev->xine_event;
-			 }
 		       break;
 		     case XINE_EVENT_UI_MESSAGE:
 			 {
-			    xine_ui_message_data_t *e;
-			    
-			    e = (xine_ui_message_data_t *)eev->xine_event;
-			    printf("EV: UI Message [FIXME: break this out to emotion api]\n");
+			    WRN("UI Message [FIXME: break this out to emotion api]");
 			    // e->type = error type(XINE_MSG_NO_ERROR, XINE_MSG_GENERAL_WARNING, XINE_MSG_UNKNOWN_HOST etc.)
 			    // e->messages is a list of messages DOUBLE null terminated
 			 }
 		       break;
 		     case XINE_EVENT_AUDIO_LEVEL:
 			 {
-			    xine_audio_level_data_t *e;
-			    
-			    e = (xine_audio_level_data_t *)eev->xine_event;
 			    _emotion_audio_level_change(ev->obj);
-			    printf("EV: Audio Level [FIXME: break this out to emotion api]\n");
+			    WRN("Audio Level [FIXME: break this out to emotion api]");
 			    // e->left (0->100) 
 			    // e->right
 			    // e->mute
@@ -1355,15 +1410,16 @@ _em_fd_ev_active(void *data, Ecore_Fd_Handler *fdh)
 			    xine_progress_data_t *e;
 			    
 			    e = (xine_progress_data_t *)eev->xine_event;
-			    printf("PROGRESS: %i\n", e->percent);
+			    DBG("PROGRESS: %i", e->percent);
+                            ev->buffer = e->percent;
 			    _emotion_progress_set(ev->obj, (char *)e->description, (double)e->percent / 100.0);
 			 }
 		       break;
-		     case XINE_EVENT_MRL_REFERENCE:
+		     case XINE_EVENT_MRL_REFERENCE_EXT:
 			 {
-			    xine_mrl_reference_data_t *e;
+			    xine_mrl_reference_data_ext_t *e;
 			    
-			    e = (xine_mrl_reference_data_t *)eev->xine_event;
+			    e = (xine_mrl_reference_data_ext_t *)eev->xine_event;
 			    _emotion_file_ref_set(ev->obj, e->mrl, e->alternative);
 			 }
 		       break;
@@ -1391,13 +1447,13 @@ _em_fd_ev_active(void *data, Ecore_Fd_Handler *fdh)
 			    xine_dropped_frames_t *e;
 			    
 			    e = (xine_dropped_frames_t *)eev->xine_event;
-			    printf("EV: Dropped Frames (skipped %i) (discarded %i) [FIXME: break this out to the emotion api]\n", e->skipped_frames, e->discarded_frames);
+			    WRN("Dropped Frames (skipped %i) (discarded %i) [FIXME: break this out to the emotion api]", e->skipped_frames, e->discarded_frames);
 			    // e->skipped_frames = % frames skipped * 10
 			    // e->discarded_frames = % frames skipped * 10
 			 }
 		       break;
 		     default:
-		       // printf("EV: unknown event type %i\n", eev->type);
+		       // DBG("unknown event type %i", eev->type);
 		       break;
 		    }
 	       }
@@ -1405,7 +1461,7 @@ _em_fd_ev_active(void *data, Ecore_Fd_Handler *fdh)
 	     free(eev);
 	  }
      }
-   return 1;
+   return EINA_TRUE;
 }
 
 static void *
@@ -1442,7 +1498,8 @@ _em_get_pos_len_th(void *par)
 		    }
 	       }
 	     ev->get_poslen = 0;
-	     //printf("get pos %3.3f\n", ev->pos);
+             _em_module_event(ev, 15); /* event - getpos done */
+	     //DBG("get pos %3.3f", ev->pos);
 	  }
 	if (ev->delete_me)
 	  {
@@ -1456,7 +1513,7 @@ _em_get_pos_len_th(void *par)
 static void
 _em_get_pos_len(Emotion_Xine_Video *ev)
 {
-   if (ev->get_poslen) return;
+   if (!ev->play_ok) return;
    ev->get_poslen = 1;
    pthread_mutex_lock(&(ev->get_pos_len_mutex));
    pthread_cond_broadcast(&(ev->get_pos_len_cond));
@@ -1473,13 +1530,15 @@ static Emotion_Video_Module em_module =
      em_stop, /* stop */
      em_size_get, /* size_get */
      em_pos_set, /* pos_set */
-     em_vis_set, /* vis_set */
      em_len_get, /* len_get */
+     em_buffer_size_get, /* buffer_size_get */
      em_fps_num_get, /* fps_num_get */
      em_fps_den_get, /* fps_den_get */
      em_fps_get, /* fps_get */
      em_pos_get, /* pos_get */
+     em_vis_set, /* vis_set */
      em_vis_get, /* vis_get */
+     em_vis_supported, /* vis_supported */
      em_ratio_get, /* ratio_get */
      em_video_handled, /* video_handled */
      em_audio_handled, /* audio_handled */
@@ -1520,28 +1579,61 @@ static Emotion_Video_Module em_module =
      em_speed_get, /* speed_get */
      em_eject, /* eject */
      em_meta_get, /* meta_get */
-     
+     NULL, /* priority_set */
+     NULL, /* priority_get */
      NULL /* handle */
 };
 
-unsigned char
+static Eina_Bool
 module_open(Evas_Object *obj, const Emotion_Video_Module **module, void **video, Emotion_Module_Options *opt)
 {
    if (!module)
-      return 0;
-   
+      return EINA_FALSE;
+
+   if (_emotion_xine_log_domain < 0)
+     {
+        eina_threads_init();
+        eina_log_threads_enable();
+        _emotion_xine_log_domain = eina_log_domain_register
+          ("emotion-xine", EINA_COLOR_LIGHTCYAN);
+        if (_emotion_xine_log_domain < 0)
+          {
+             EINA_LOG_CRIT("Could not register log domain 'emotion-xine'");
+             return EINA_FALSE;
+          }
+     }
+
    if (!em_module.init(obj, video, opt))
-      return 0;
+      return EINA_FALSE;
 
    *module = &em_module;
-   return 1;
+   return EINA_TRUE;
 }
 
-void
-module_close(Emotion_Video_Module *module, void *video)
+static void
+module_close(Emotion_Video_Module *module __UNUSED__, void *video)
 {
    em_module.shutdown(video);
 }
+
+Eina_Bool
+xine_module_init(void)
+{
+   return _emotion_module_register("xine", module_open, module_close);
+}
+
+void
+xine_module_shutdown(void)
+{
+   _emotion_module_unregister("xine");
+}
+
+#ifndef EMOTION_STATIC_BUILD_XINE
+
+EINA_MODULE_INIT(xine_module_init);
+EINA_MODULE_SHUTDOWN(xine_module_shutdown);
+
+#endif
 
 #if 0
 void
@@ -1585,48 +1677,46 @@ em_debug(Emotion_Xine_Video *ev)
    spu_channel = xine_get_param(ev->stream, XINE_PARAM_SPU_CHANNEL);
    video_ratio = xine_get_stream_info(ev->stream, XINE_STREAM_INFO_VIDEO_RATIO);
    audio_mode = xine_get_stream_info(ev->stream, XINE_STREAM_INFO_AUDIO_MODE);
-   printf("has_chapters = %i\n", has_chapters);
-   printf("max_spu = %i\n", max_spu);
-   printf("max_audio = %i\n", max_audio);
-   printf("video_channels = %i\n", video_channels);
-   printf("video_streams = %i\n", video_streams);
-   printf("video_seekable = %i\n", video_seekable);
-   printf("title = %s\n", title);
-   printf("comment = %s\n", comment);
-   printf("artist = %s\n", artist);
-   printf("genre = %s\n", genre);
-   printf("album = %s\n", album);
-   printf("year = %s\n", year);
-   printf("cdindex_discid = %s\n", cdindex_discid);
-   printf("video_channel = %i\n", video_channel);
-   printf("audio_channel = %i\n", audio_channel);
-   printf("spu_channels = %i\n", spu_channel);
-   printf("video_ratio = %i\n", video_ratio);
-   printf("audio_mode = %i\n", audio_mode);
+   DBG("has_chapters = %i", has_chapters);
+   DBG("max_spu = %i", max_spu);
+   DBG("max_audio = %i", max_audio);
+   DBG("video_channels = %i", video_channels);
+   DBG("video_streams = %i", video_streams);
+   DBG("video_seekable = %i", video_seekable);
+   DBG("title = %s", title);
+   DBG("comment = %s", comment);
+   DBG("artist = %s", artist);
+   DBG("genre = %s", genre);
+   DBG("album = %s", album);
+   DBG("year = %s", year);
+   DBG("cdindex_discid = %s", cdindex_discid);
+   DBG("video_channel = %i", video_channel);
+   DBG("audio_channel = %i", audio_channel);
+   DBG("spu_channels = %i", spu_channel);
+   DBG("video_ratio = %i", video_ratio);
+   DBG("audio_mode = %i", audio_mode);
      {
 	int i;
 	
 	for (i = 0; i <= max_audio; i++)
 	  {
 	     char lang[XINE_LANG_MAX + 1];
-	     
+             char buf[128] = "NONE";
+
 	     lang[0] = 0;
-	     printf("  AUDIO %i = ", i);
 	     if (xine_get_audio_lang(ev->stream, i, lang))
-	       printf("%s\n", lang);
-	     else
-	       printf("NONE\n");
+	       eina_strlcpy(buf, lang, sizeof(buf));
+	     DBG("  AUDIO %i = %s", i, buf);
 	  }
 	for (i = 0; i <= max_spu; i++)
 	  {
 	     char lang[XINE_LANG_MAX + 1];
-	     
+             char buf[128] = "NONE";
+
 	     lang[0] = 0;
-	     printf("  SPU %i = ", i);
 	     if (xine_get_spu_lang(ev->stream, i, lang))
-	       printf("%s\n", lang);
-	     else
-	       printf("NONE\n");
+               eina_strlcpy(buf, lang, sizeof(buf));
+	     DBG("  SPU %i = %s", i, buf);
 	  }
      }
 }
