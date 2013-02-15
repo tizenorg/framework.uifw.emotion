@@ -1,18 +1,6 @@
 #ifndef EMOTION_PRIVATE_H
 #define EMOTION_PRIVATE_H
 
-#include <Evas.h>
-#include <Ecore.h>
-#include <Ecore_Job.h>
-#include <Ecore_Data.h>
-#include <Ecore_Str.h>
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-#include "config.h"
-
 #define META_TRACK_TITLE 1
 #define META_TRACK_ARTIST 2
 #define META_TRACK_GENRE 3
@@ -23,9 +11,12 @@
 #define META_TRACK_COUNT 8
 
 typedef enum _Emotion_Format Emotion_Format;
-typedef enum _Emotion_Vis Emotion_Vis;
 typedef struct _Emotion_Video_Module Emotion_Video_Module;
 typedef struct _Emotion_Module_Options Emotion_Module_Options;
+typedef struct _Eina_Emotion_Plugins Eina_Emotion_Plugins;
+
+typedef Eina_Bool (*Emotion_Module_Open)(Evas_Object *, const Emotion_Video_Module **, void **, Emotion_Module_Options *);
+typedef void (*Emotion_Module_Close)(Emotion_Video_Module *module, void *);
 
 enum _Emotion_Format
 {
@@ -36,32 +27,17 @@ enum _Emotion_Format
    EMOTION_FORMAT_BGRA
 };
 
-enum _Emotion_Vis
-{
-  EMOTION_VIS_GOOM,
-  EMOTION_VIS_LIBVISUAL_BUMPSCOPE,
-  EMOTION_VIS_LIBVISUAL_CORONA,
-  EMOTION_VIS_LIBVISUAL_DANCING_PARTICLES,
-  EMOTION_VIS_LIBVISUAL_GDKPIXBUF,
-  EMOTION_VIS_LIBVISUAL_G_FORCE,
-  EMOTION_VIS_LIBVISUAL_GOOM,
-  EMOTION_VIS_LIBVISUAL_INFINITE,
-  EMOTION_VIS_LIBVISUAL_JAKDAW,
-  EMOTION_VIS_LIBVISUAL_JESS,
-  EMOTION_VIS_LIBVISUAL_LV_ANALYSER,
-  EMOTION_VIS_LIBVISUAL_LV_FLOWER,
-  EMOTION_VIS_LIBVISUAL_LV_GLTEST,
-  EMOTION_VIS_LIBVISUAL_LV_SCOPE,
-  EMOTION_VIS_LIBVISUAL_MADSPIN,
-  EMOTION_VIS_LIBVISUAL_NEBULUS,
-  EMOTION_VIS_LIBVISUAL_OINKSIE,
-  EMOTION_VIS_LIBVISUAL_PLASMA
-};
-
 struct _Emotion_Module_Options
 {
-   unsigned char no_video : 1;
-   unsigned char no_audio : 1;
+   const char *player;
+   Eina_Bool no_video : 1;
+   Eina_Bool no_audio : 1;
+};
+
+struct _Eina_Emotion_Plugins
+{
+   Emotion_Module_Open open;
+   Emotion_Module_Close close;
 };
 
 struct _Emotion_Video_Module
@@ -74,13 +50,15 @@ struct _Emotion_Video_Module
    void           (*stop) (void *ef);
    void           (*size_get) (void *ef, int *w, int *h);
    void           (*pos_set) (void *ef, double pos);
-   void           (*vis_set) (void *ef, Emotion_Vis vis);
    double         (*len_get) (void *ef);
+   double         (*buffer_size_get) (void *ef);
    int            (*fps_num_get) (void *ef);
    int            (*fps_den_get) (void *ef);
    double         (*fps_get) (void *ef);
    double         (*pos_get) (void *ef);
+   void           (*vis_set) (void *ef, Emotion_Vis vis);
    Emotion_Vis    (*vis_get) (void *ef);
+   Eina_Bool      (*vis_supported) (void *ef, Emotion_Vis vis);
    double         (*ratio_get) (void *ef);
    int            (*video_handled) (void *ef);
    int            (*audio_handled) (void *ef);
@@ -121,23 +99,37 @@ struct _Emotion_Video_Module
    double         (*speed_get) (void *ef);
    int            (*eject) (void *ef);
    const char *   (*meta_get) (void *ef, int meta);
+   void           (*priority_set) (void *ef, Eina_Bool priority);
+   Eina_Bool      (*priority_get) (void *ef);
 
-   Ecore_Plugin    *plugin;
-   Ecore_Path_Group *path_group;
+   Eina_Emotion_Plugins *plugin;
 };
 
-EAPI void *_emotion_video_get(Evas_Object *obj);
+EAPI void *_emotion_video_get(const Evas_Object *obj);
 EAPI void  _emotion_frame_new(Evas_Object *obj);
 EAPI void  _emotion_video_pos_update(Evas_Object *obj, double pos, double len);
 EAPI void  _emotion_frame_resize(Evas_Object *obj, int w, int h, double ratio);
+EAPI void  _emotion_frame_refill(Evas_Object *obj, double w, double h);
 EAPI void  _emotion_decode_stop(Evas_Object *obj);
+EAPI void  _emotion_open_done(Evas_Object *obj);
+EAPI void  _emotion_playback_started(Evas_Object *obj);
 EAPI void  _emotion_playback_finished(Evas_Object *obj);
 EAPI void  _emotion_audio_level_change(Evas_Object *obj);
 EAPI void  _emotion_channels_change(Evas_Object *obj);
 EAPI void  _emotion_title_set(Evas_Object *obj, char *title);
 EAPI void  _emotion_progress_set(Evas_Object *obj, char *info, double stat);
-EAPI void  _emotion_file_ref_set(Evas_Object *obj, char *file, int num);
+EAPI void  _emotion_file_ref_set(Evas_Object *obj, const char *file, int num);
 EAPI void  _emotion_spu_button_num_set(Evas_Object *obj, int num);
 EAPI void  _emotion_spu_button_set(Evas_Object *obj, int button);
+EAPI void  _emotion_seek_done(Evas_Object *obj);
+EAPI void  _emotion_image_reset(Evas_Object *obj);
+
+EAPI Eina_Bool _emotion_module_register(const char *name, Emotion_Module_Open open, Emotion_Module_Close close);
+EAPI Eina_Bool _emotion_module_unregister(const char *name);
+
+EAPI const char *emotion_webcam_custom_get(const char *device);
+
+EAPI void _emotion_pending_object_ref(void);
+EAPI void _emotion_pending_object_unref(void);
 
 #endif

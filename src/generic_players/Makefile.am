@@ -1,0 +1,8 @@
+
+MAINTAINERCLEANFILES = Makefile.in
+
+SUBDIRS =
+
+if EMOTION_BUILD_GENERIC_VLC
+SUBDIRS += vlc
+endif
