@@ -1,21 +1,44 @@
-#include "config.h"
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-#if defined(HAVE_ECORE_X_H) || defined(HAVE_ECORE_FB_H)
-
 #include <Evas.h>
 #include <Ecore.h>
-#ifndef FB_ONLY
-#include <Ecore_X.h>
-#else
-#include <Ecore_Fb.h>
-#endif
+#include <Ecore_Getopt.h>
 #include <Ecore_Evas.h>
 #include <Edje.h>
 
 #include "Emotion.h"
+
+static const Ecore_Getopt options = {
+   "emotion_test",
+   "%prog [options] <filename>",
+   "1.0.0",
+   "(C) 2011 Enlightenment",
+   "BSD\nThis is a 3 clause bsd bla bla",
+   "a simple test program for emotion.",
+   1,
+   {
+      ECORE_GETOPT_STORE_STR('e', "engine", "ecore-evas engine to use"),
+      ECORE_GETOPT_CALLBACK_NOARGS('E', "list-engines", "list ecore-evas engines",
+                                   ecore_getopt_callback_ecore_evas_list_engines, NULL),
+      ECORE_GETOPT_CALLBACK_ARGS('g', "geometry", "geometry to use in x:y:w:h form.", "X:Y:W:H",
+                                 ecore_getopt_callback_geometry_parse, NULL),
+      ECORE_GETOPT_STORE_STR('b', "backend", "backend to use"),
+      ECORE_GETOPT_STORE_INT('v', "vis", "visualization type"),
+      ECORE_GETOPT_COUNT('v', "verbose", "be more verbose"),
+      ECORE_GETOPT_STORE_TRUE('R', "reflex", "show video reflex effect"),
+      ECORE_GETOPT_VERSION('V', "version"),
+      ECORE_GETOPT_COPYRIGHT('R', "copyright"),
+      ECORE_GETOPT_LICENSE('L', "license"),
+      ECORE_GETOPT_HELP('h', "help"),
+      ECORE_GETOPT_SENTINEL
+   }
+};
 
 typedef struct _Frame_Data Frame_Data;
 
@@ -27,10 +50,8 @@ struct _Frame_Data
    Evas_Coord x, y;
 };
 
-static int  main_start(int argc, char **argv);
-static void main_stop(void);
 static void main_resize(Ecore_Evas *ee);
-static int  main_signal_exit(void *data, int ev_type, void *ev);
+static Eina_Bool  main_signal_exit(void *data, int ev_type, void *ev);
 static void main_delete_request(Ecore_Evas *ee);
 
 static void bg_setup(void);
@@ -45,125 +66,35 @@ static Evas        *evas       = NULL;
 static int          startw     = 800;
 static int          starth     = 600;
 
-static Evas_List   *video_objs = NULL;
-
-static int
-main_start(int argc, char **argv)
-{
-   int mode = 0;
-
-   start_time = ecore_time_get();
-   if (!ecore_init()) return -1;
-   ecore_app_args_set(argc, (const char **)argv);
-   ecore_event_handler_add(ECORE_EVENT_SIGNAL_EXIT, main_signal_exit, NULL);
-   if (!ecore_evas_init()) return -1;
-#ifndef FB_ONLY
-     {
-        int i;
-
-        for (i = 1; i < argc; i++)
-          {
-	     if (((!strcmp(argv[i], "-g")) ||
-		  (!strcmp(argv[i], "-geometry")) ||
-		  (!strcmp(argv[i], "--geometry"))) && (i < (argc - 1)))
-	       {
-		  int n, w, h;
-		  char buf[16], buf2[16];
-
-		  n = sscanf(argv[i +1], "%10[^x]x%10s", buf, buf2);
-		  if (n == 2)
-		    {
-		       w = atoi(buf);
-		       h = atoi(buf2);
-		       startw = w;
-		       starth = h;
-		    }
-		  i++;
-	       }
-             else if (!strcmp(argv[i], "-gl"))
-               {
-		  mode = 1;
-               }
-             else if (!strcmp(argv[i], "-fb"))
-               {
-		  mode = 2;
-               }
-             else if (!strcmp(argv[i], "-xr"))
-               {
-		  mode = 3;
-               }
-          }
-     }
-#if HAVE_ECORE_EVAS_X
-   if (mode == 0)
-     ecore_evas = ecore_evas_software_x11_new(NULL, 0,  0, 0, startw, starth);
-#endif
-#if HAVE_ECORE_EVAS_X11_GL
-   if (mode == 1)
-     ecore_evas = ecore_evas_gl_x11_new(NULL, 0, 0, 0, startw, starth);
-#endif
-#if HAVE_ECORE_EVAS_FB
-   if (mode == 2)
-     ecore_evas = ecore_evas_fb_new(NULL, 0, startw, starth);
-#endif
-   if (mode == 3)
-     ecore_evas = ecore_evas_xrender_x11_new(NULL, 0, 0, 0, startw, starth);
-
-#else
-   startw = 240;
-   starth = 320;
-   ecore_evas = ecore_evas_fb_new(NULL, 270,  startw, starth);
-#endif
-   if (!ecore_evas) return -1;
-   ecore_evas_callback_delete_request_set(ecore_evas, main_delete_request);
-   ecore_evas_callback_resize_set(ecore_evas, main_resize);
-   ecore_evas_title_set(ecore_evas, "Evas Media Test Program");
-   ecore_evas_name_class_set(ecore_evas, "evas_media_test", "main");
-   ecore_evas_show(ecore_evas);
-   evas = ecore_evas_get(ecore_evas);
-   evas_image_cache_set(evas, 8 * 1024 * 1024);
-   evas_font_cache_set(evas, 1 * 1024 * 1024);
-   evas_font_path_append(evas, PACKAGE_DATA_DIR"/data/fonts");
-
-   edje_init();
-   edje_frametime_set(1.0 / 30.0);
-   return 1;
-}
-
-static void
-main_stop(void)
-{
-   main_signal_exit(NULL, 0, NULL);
-   edje_shutdown();
-   ecore_evas_shutdown();
-   ecore_shutdown();
-}
+static Eina_List   *video_objs = NULL;
+static Emotion_Vis  vis        = EMOTION_VIS_NONE;
+static unsigned char reflex    = 0;
 
 static void
 main_resize(Ecore_Evas *ee)
 {
    Evas_Coord w, h;
 
-   evas_output_viewport_get(evas, NULL, NULL, &w, &h);
+   evas_output_viewport_get(ecore_evas_get(ee), NULL, NULL, &w, &h);
    bg_resize(w, h);
 }
 
-static int
-main_signal_exit(void *data, int ev_type, void *ev)
+static Eina_Bool
+main_signal_exit(void *data __UNUSED__, int ev_type __UNUSED__, void *ev __UNUSED__)
 {
+   Evas_Object *o;
+
    ecore_main_loop_quit();
-   while (video_objs)
+   EINA_LIST_FREE(video_objs, o)
      {
-	printf("del obj!\n");
-	evas_object_del(video_objs->data);
-	video_objs = evas_list_remove_list(video_objs, video_objs);
-	printf("done\n");
+	emotion_object_last_position_save(o);
+	evas_object_del(o);
      }
-   return 1;
+   return EINA_TRUE;
 }
 
 static void
-main_delete_request(Ecore_Evas *ee)
+main_delete_request(Ecore_Evas *ee __UNUSED__)
 {
    ecore_main_loop_quit();
 }
@@ -193,23 +124,20 @@ bg_resize(Evas_Coord w, Evas_Coord h)
 static void
 broadcast_event(Emotion_Event ev)
 {
-   Evas_List *l;
+   Eina_List *l;
+   Evas_Object *obj;
 
-   for (l = video_objs; l; l = l->next)
-     {
-	Evas_Object *obj;
-
-	obj = l->data;
-	emotion_object_event_simple_send(obj, ev);
-     }
+   EINA_LIST_FOREACH(video_objs, l, obj)
+     emotion_object_event_simple_send(obj, ev);
 }
 
 static void
-bg_key_down(void *data, Evas * e, Evas_Object * obj, void *event_info)
+bg_key_down(void *data __UNUSED__, Evas *e __UNUSED__, Evas_Object *obj __UNUSED__, void *event_info)
 {
-   Evas_Event_Key_Down *ev;
+   Evas_Event_Key_Down *ev = event_info;
+   Eina_List *l;
+   Evas_Object *o;
 
-   ev = (Evas_Event_Key_Down *)event_info;
    if      (!strcmp(ev->keyname, "Escape"))
      ecore_main_loop_quit();
    else if (!strcmp(ev->keyname, "Up"))
@@ -252,77 +180,48 @@ bg_key_down(void *data, Evas * e, Evas_Object * obj, void *event_info)
      broadcast_event(EMOTION_EVENT_10);
    else if (!strcmp(ev->keyname, "bracketleft"))
      {
-	Evas_List *l;
-
-	for (l = video_objs; l; l = l->next)
-	  {
-	     Evas_Object *obj;
-
-	     obj = l->data;
-	     emotion_object_audio_volume_set(obj, emotion_object_audio_volume_get(obj) - 0.1);
-	  }
+	EINA_LIST_FOREACH(video_objs, l, o)
+	  emotion_object_audio_volume_set(o, emotion_object_audio_volume_get(o) - 0.1);
      }
    else if (!strcmp(ev->keyname, "bracketright"))
      {
-	Evas_List *l;
-
-	for (l = video_objs; l; l = l->next)
-	  {
-	     Evas_Object *obj;
-
-	     obj = l->data;
-	     emotion_object_audio_volume_set(obj, emotion_object_audio_volume_get(obj) + 0.1);
-	  }
+        EINA_LIST_FOREACH(video_objs, l, o)
+	  emotion_object_audio_volume_set(o, emotion_object_audio_volume_get(o) + 0.1);
      }
    else if (!strcmp(ev->keyname, "v"))
      {
-	Evas_List *l;
-
-	for (l = video_objs; l; l = l->next)
+        EINA_LIST_FOREACH(video_objs, l, o)
 	  {
-	     Evas_Object *obj;
-
-	     obj = l->data;
-	     if (emotion_object_video_mute_get(obj))
-	       emotion_object_video_mute_set(obj, 0);
+	     if (emotion_object_video_mute_get(o))
+	       emotion_object_video_mute_set(o, 0);
 	     else
-	       emotion_object_video_mute_set(obj, 1);
+	       emotion_object_video_mute_set(o, 1);
 	  }
      }
    else if (!strcmp(ev->keyname, "a"))
      {
-	Evas_List *l;
-
-	for (l = video_objs; l; l = l->next)
+        EINA_LIST_FOREACH(video_objs, l, o)
 	  {
-	     Evas_Object *obj;
-
-	     obj = l->data;
-	     if (emotion_object_audio_mute_get(obj))
+	     if (emotion_object_audio_mute_get(o))
 	       {
-		  emotion_object_audio_mute_set(obj, 0);
+		  emotion_object_audio_mute_set(o, 0);
 		  printf("unmute\n");
 	       }
 	     else
 	       {
-		  emotion_object_audio_mute_set(obj, 1);
+		  emotion_object_audio_mute_set(o, 1);
 		  printf("mute\n");
 	       }
 	  }
      }
    else if (!strcmp(ev->keyname, "i"))
      {
-	Evas_List *l;
-
-	for (l = video_objs; l; l = l->next)
+	EINA_LIST_FOREACH(video_objs, l, o)
 	  {
-	     Evas_Object *obj;
-
-	     obj = l->data;
-	     printf("audio channels: %i\n", emotion_object_audio_channel_count(obj));
-	     printf("video channels: %i\n", emotion_object_video_channel_count(obj));
-	     printf("spu channels: %i\n", emotion_object_spu_channel_count(obj));
-	     printf("seekable: %i\n", emotion_object_seekable_get(obj));
+	     printf("audio channels: %i\n", emotion_object_audio_channel_count(o));
+	     printf("video channels: %i\n", emotion_object_video_channel_count(o));
+	     printf("spu channels: %i\n", emotion_object_spu_channel_count(o));
+	     printf("seekable: %i\n", emotion_object_seekable_get(o));
 	  }
      }
    else if (!strcmp(ev->keyname, "f"))
@@ -366,8 +265,30 @@ bg_key_down(void *data, Evas * e, Evas_Object * obj, void *event_info)
 	  {
 	     printf("del obj!\n");
 	     evas_object_del(video_objs->data);
-	     video_objs = evas_list_remove_list(video_objs, video_objs);
+	     video_objs = eina_list_remove_list(video_objs, video_objs);
 	     printf("done\n");
+	  }
+     }
+   else if (!strcmp(ev->keyname, "z"))
+     {
+	vis = (vis + 1) % EMOTION_VIS_LAST;
+	printf("new visualization: %d\n", vis);
+
+	EINA_LIST_FOREACH(video_objs, l, o)
+	  {
+	     Eina_Bool supported;
+
+	     supported = emotion_object_vis_supported(o, vis);
+	     if (supported)
+	       emotion_object_vis_set(o, vis);
+	     else
+	       {
+		  const char *file;
+
+		  file = emotion_object_file_get(o);
+		  printf("object %p (%s) does not support visualization %d\n",
+			 o, file, vis);
+	       }
 	  }
      }
    else
@@ -377,75 +298,16 @@ bg_key_down(void *data, Evas * e, Evas_Object * obj, void *event_info)
 }
 
 static void
-video_obj_in_cb(void *data, Evas *ev, Evas_Object *obj, void *event_info)
+video_obj_time_changed(Evas_Object *obj, Evas_Object *edje)
 {
-//   evas_object_color_set(obj, 255, 255, 255, 100);
-}
-
-static void
-video_obj_out_cb(void *data, Evas *ev, Evas_Object *obj, void *event_info)
-{
-//   evas_object_color_set(obj, 255, 255, 255, 200);
-}
-
-static void
-video_obj_down_cb(void *data, Evas *ev, Evas_Object *obj, void *event_info)
-{
-   Evas_Event_Mouse_Down *e;
-
-   e = event_info;
-   evas_object_color_set(obj, 200, 50, 40, 200);
-   evas_object_raise(obj);
-}
-
-static void
-video_obj_up_cb(void *data, Evas *ev, Evas_Object *obj, void *event_info)
-{
-   Evas_Event_Mouse_Up *e;
-
-   e = event_info;
-   evas_object_color_set(obj, 100, 100, 100, 100);
-}
-
-static void
-video_obj_move_cb(void *data, Evas *ev, Evas_Object *obj, void *event_info)
-{
-   Evas_Event_Mouse_Move *e;
-
-   e = event_info;
-   if (e->buttons & 0x1)
-     {
-	Evas_Coord x, y;
-
-	evas_object_geometry_get(obj, &x, &y, NULL, NULL);
-	x += e->cur.canvas.x - e->prev.canvas.x;
-	y += e->cur.canvas.y - e->prev.canvas.y;
-	evas_object_move(obj, x, y);
-     }
-   else if (e->buttons & 0x4)
-     {
-	Evas_Coord w, h;
-
-	evas_object_geometry_get(obj, NULL, NULL, &w, &h);
-	w += e->cur.canvas.x - e->prev.canvas.x;
-	h += e->cur.canvas.y - e->prev.canvas.y;
-	evas_object_resize(obj, w, h);
-     }
-}
-
-static void
-video_obj_frame_decode_cb(void *data, Evas_Object *obj, void *event_info)
-{
-   Evas_Object *oe;
-   double pos, len;
+   double pos, len, scale;
    char buf[256];
    int ph, pm, ps, pf, lh, lm, ls;
 
-   oe = data;
    pos = emotion_object_position_get(obj);
    len = emotion_object_play_length_get(obj);
-//   printf("%3.3f, %3.3f\n", pos, len);
-   edje_object_part_drag_value_set(oe, "video_progress", pos / len, 0.0);
+   scale = (len > 0.0) ? pos / len : 0.0;
+   edje_object_part_drag_value_set(edje, "video_progress", scale, 0.0);
    lh = len / 3600;
    lm = len / 60 - (lh * 60);
    ls = len - (lm * 60);
@@ -455,7 +317,13 @@ video_obj_frame_decode_cb(void *data, Evas_Object *obj, void *event_info)
    pf = pos * 100 - (ps * 100) - (pm * 60 * 100) - (ph * 60 * 60 * 100);
    snprintf(buf, sizeof(buf), "%i:%02i:%02i.%02i / %i:%02i:%02i",
 	    ph, pm, ps, pf, lh, lm, ls);
-   edje_object_part_text_set(oe, "video_progress_txt", buf);
+   edje_object_part_text_set(edje, "video_progress_txt", buf);
+}
+
+static void
+video_obj_frame_decode_cb(void *data, Evas_Object *obj, void *event_info __UNUSED__)
+{
+   video_obj_time_changed(obj, data);
 
    if (0)
      {
@@ -468,7 +336,7 @@ video_obj_frame_decode_cb(void *data, Evas_Object *obj, void *event_info)
 }
 
 static void
-video_obj_frame_resize_cb(void *data, Evas_Object *obj, void *event_info)
+video_obj_frame_resize_cb(void *data, Evas_Object *obj, void *event_info __UNUSED__)
 {
    Evas_Object *oe;
    int iw, ih;
@@ -489,46 +357,28 @@ video_obj_frame_resize_cb(void *data, Evas_Object *obj, void *event_info)
 }
 
 static void
-video_obj_length_change_cb(void *data, Evas_Object *obj, void *event_info)
+video_obj_length_change_cb(void *data, Evas_Object *obj, void *event_info __UNUSED__)
 {
-   Evas_Object *oe;
-   double pos, len;
-   char buf[256];
-   int ph, pm, ps, pf, lh, lm, ls;
-
-   oe = data;
-   pos = emotion_object_position_get(obj);
-   len = emotion_object_play_length_get(obj);
-   edje_object_part_drag_value_set(oe, "video_progress", pos / len, 0.0);
-   lh = len / 3600;
-   lm = len / 60 - (lh * 60);
-   ls = len - (lm * 60);
-   ph = pos / 3600;
-   pm = pos / 60 - (ph * 60);
-   ps = pos - (pm * 60);
-   pf = pos * 100 - (ps * 100) - (pm * 60 * 100) - (ph * 60 * 60 * 100);
-   snprintf(buf, sizeof(buf), "%i:%02i:%02i.%02i / %i:%02i:%02i",
-	    ph, pm, ps, pf, lh, lm, ls);
-   edje_object_part_text_set(oe, "video_progress_txt", buf);
+   video_obj_time_changed(obj, data);
 }
 
 static void
-video_obj_stopped_cb(void *data, Evas_Object *obj, void *event_info)
+video_obj_position_update_cb(void *data, Evas_Object *obj, void *event_info __UNUSED__)
 {
-   Evas_Object *oe;
+   video_obj_time_changed(obj, data);
+}
 
-   oe = data;
+static void
+video_obj_stopped_cb(void *data __UNUSED__, Evas_Object *obj, void *event_info __UNUSED__)
+{
    printf("video stopped!\n");
    emotion_object_position_set(obj, 0.0);
    emotion_object_play_set(obj, 1);
 }
 
 static void
-video_obj_channels_cb(void *data, Evas_Object *obj, void *event_info)
+video_obj_channels_cb(void *data __UNUSED__, Evas_Object *obj, void *event_info __UNUSED__)
 {
-   Evas_Object *oe;
-
-   oe = data;
    printf("channels changed: [AUD %i][VID %i][SPU %i]\n",
 	  emotion_object_audio_channel_count(obj),
 	  emotion_object_video_channel_count(obj),
@@ -536,52 +386,37 @@ video_obj_channels_cb(void *data, Evas_Object *obj, void *event_info)
 }
 
 static void
-video_obj_title_cb(void *data, Evas_Object *obj, void *event_info)
+video_obj_title_cb(void *data __UNUSED__, Evas_Object *obj, void *event_info __UNUSED__)
 {
-   Evas_Object *oe;
-
-   oe = data;
    printf("video title to: \"%s\"\n", emotion_object_title_get(obj));
 }
 
 static void
-video_obj_progress_cb(void *data, Evas_Object *obj, void *event_info)
+video_obj_progress_cb(void *data __UNUSED__, Evas_Object *obj, void *event_info __UNUSED__)
 {
-   Evas_Object *oe;
-
-   oe = data;
    printf("progress: \"%s\" %3.3f\n",
 	  emotion_object_progress_info_get(obj),
 	  emotion_object_progress_status_get(obj));
 }
 
 static void
-video_obj_ref_cb(void *data, Evas_Object *obj, void *event_info)
+video_obj_ref_cb(void *data __UNUSED__, Evas_Object *obj, void *event_info __UNUSED__)
 {
-   Evas_Object *oe;
-
-   oe = data;
    printf("video ref to: \"%s\" %i\n",
 	  emotion_object_ref_file_get(obj),
 	  emotion_object_ref_num_get(obj));
 }
 
 static void
-video_obj_button_num_cb(void *data, Evas_Object *obj, void *event_info)
+video_obj_button_num_cb(void *data __UNUSED__, Evas_Object *obj, void *event_info __UNUSED__)
 {
-   Evas_Object *oe;
-
-   oe = data;
    printf("video spu buttons to: %i\n",
 	  emotion_object_spu_button_count_get(obj));
 }
 
 static void
-video_obj_button_cb(void *data, Evas_Object *obj, void *event_info)
+video_obj_button_cb(void *data __UNUSED__, Evas_Object *obj, void *event_info __UNUSED__)
 {
-   Evas_Object *oe;
-
-   oe = data;
    printf("video selected spu button: %i\n",
 	  emotion_object_spu_button_get(obj));
 }
@@ -589,58 +424,50 @@ video_obj_button_cb(void *data, Evas_Object *obj, void *event_info)
 
 
 static void
-video_obj_signal_play_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_play_cb(void *data, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
-   Evas_Object *ov;
-
-   ov = data;
+   Evas_Object *ov = data;
    emotion_object_play_set(ov, 1);
    edje_object_signal_emit(o, "video_state", "play");
 }
 
 static void
-video_obj_signal_pause_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_pause_cb(void *data, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
-   Evas_Object *ov;
-
-   ov = data;
+   Evas_Object *ov = data;
    emotion_object_play_set(ov, 0);
    edje_object_signal_emit(o, "video_state", "pause");
 }
 
 static void
-video_obj_signal_stop_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_stop_cb(void *data, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
-   Evas_Object *ov;
-
-   ov = data;
+   Evas_Object *ov = data;
    emotion_object_play_set(ov, 0);
    emotion_object_position_set(ov, 0);
    edje_object_signal_emit(o, "video_state", "stop");
 }
 
 static void
-video_obj_signal_jump_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_jump_cb(void *data, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
-   Evas_Object *ov;
+   Evas_Object *ov = data;
    double len;
    double x, y;
 
-   ov = data;
    edje_object_part_drag_value_get(o, source, &x, &y);
    len = emotion_object_play_length_get(ov);
    emotion_object_position_set(ov, x * len);
 }
 
 static void
-video_obj_signal_speed_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_speed_cb(void *data, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
-   Evas_Object *ov;
+   Evas_Object *ov = data;
    double spd;
    double x, y;
    char buf[256];
 
-   ov = data;
    edje_object_part_drag_value_get(o, source, &x, &y);
    spd = 255 * y;
    evas_object_color_set(ov, spd, spd, spd, spd);
@@ -649,7 +476,7 @@ video_obj_signal_speed_cb(void *data, Evas_Object *o, const char *emission, cons
 }
 
 static void
-video_obj_signal_frame_move_start_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_frame_move_start_cb(void *data __UNUSED__, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
    Frame_Data *fd;
    Evas_Coord x, y;
@@ -663,7 +490,7 @@ video_obj_signal_frame_move_start_cb(void *data, Evas_Object *o, const char *emi
 }
 
 static void
-video_obj_signal_frame_move_stop_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_frame_move_stop_cb(void *data __UNUSED__, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
    Frame_Data *fd;
 
@@ -672,7 +499,7 @@ video_obj_signal_frame_move_stop_cb(void *data, Evas_Object *o, const char *emis
 }
 
 static void
-video_obj_signal_frame_resize_start_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_frame_resize_start_cb(void *data __UNUSED__, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
    Frame_Data *fd;
    Evas_Coord x, y;
@@ -686,7 +513,7 @@ video_obj_signal_frame_resize_start_cb(void *data, Evas_Object *o, const char *e
 }
 
 static void
-video_obj_signal_frame_resize_stop_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_frame_resize_stop_cb(void *data __UNUSED__, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
    Frame_Data *fd;
 
@@ -695,7 +522,7 @@ video_obj_signal_frame_resize_stop_cb(void *data, Evas_Object *o, const char *em
 }
 
 static void
-video_obj_signal_frame_move_cb(void *data, Evas_Object *o, const char *emission, const char *source)
+video_obj_signal_frame_move_cb(void *data __UNUSED__, Evas_Object *o, const char *emission __UNUSED__, const char *source __UNUSED__)
 {
    Frame_Data *fd;
 
@@ -724,7 +551,7 @@ video_obj_signal_frame_move_cb(void *data, Evas_Object *o, const char *emission,
 
 
 static void
-init_video_object(char *module_filename, char *filename)
+init_video_object(const char *module_filename, const char *filename)
 {
    Evas_Object *o, *oe;
    int iw, ih;
@@ -736,7 +563,12 @@ init_video_object(char *module_filename, char *filename)
    o = emotion_object_add(evas);
    if (!emotion_object_init(o, module_filename))
      return;
-   emotion_object_file_set(o, filename);
+   emotion_object_vis_set(o, vis);
+   if (!emotion_object_file_set(o, filename))
+     {
+       return;
+     }
+   emotion_object_last_position_load(o);
    emotion_object_play_set(o, 1);
    evas_object_move(o, 0, 0);
    evas_object_resize(o, 320, 240);
@@ -745,7 +577,7 @@ init_video_object(char *module_filename, char *filename)
 /* end basic video setup. all the rest here is just to be fancy */
 
 
-   video_objs = evas_list_append(video_objs, o);
+   video_objs = eina_list_append(video_objs, o);
 
    emotion_object_size_get(o, &iw, &ih);
    w = iw; h = ih;
@@ -754,7 +586,10 @@ init_video_object(char *module_filename, char *filename)
 
    oe = edje_object_add(evas);
    evas_object_data_set(oe, "frame_data", fd);
-   edje_object_file_set(oe, PACKAGE_DATA_DIR"/data/theme.edj", "video_controller");
+   if (reflex)
+     edje_object_file_set(oe, PACKAGE_DATA_DIR"/data/theme.edj", "video_controller/reflex");
+   else
+     edje_object_file_set(oe, PACKAGE_DATA_DIR"/data/theme.edj", "video_controller");
    edje_extern_object_min_size_set(o, w, h);
    edje_object_part_swallow(oe, "video_swallow", o);
    edje_object_size_min_calc(oe, &w, &h);
@@ -767,6 +602,7 @@ init_video_object(char *module_filename, char *filename)
    evas_object_smart_callback_add(o, "frame_decode", video_obj_frame_decode_cb, oe);
    evas_object_smart_callback_add(o, "frame_resize", video_obj_frame_resize_cb, oe);
    evas_object_smart_callback_add(o, "length_change", video_obj_length_change_cb, oe);
+   evas_object_smart_callback_add(o, "position_update", video_obj_position_update_cb, oe);
 
    evas_object_smart_callback_add(o, "decode_stop", video_obj_stopped_cb, oe);
    evas_object_smart_callback_add(o, "channels_change", video_obj_channels_cb, oe);
@@ -796,84 +632,117 @@ init_video_object(char *module_filename, char *filename)
    evas_object_show(oe);
 }
 
-static int
-enter_idle(void *data)
+static Eina_Bool
+check_positions(void *data __UNUSED__)
 {
-   double t;
-   static double pt = 0.0;
-   static int frames = 0;
+   const Eina_List *lst;
+   Evas_Object *o;
 
-   t = ecore_time_get();
-   if (frames == 0) pt = t;
-   frames++;
-   if (frames == 100)
-     {
-//	printf("FPS: %3.3f\n", frames / (t - pt));
-	frames = 0;
-     }
-   return 1;
+   EINA_LIST_FOREACH(video_objs, lst, o)
+     video_obj_time_changed(o, evas_object_smart_parent_get(o));
+
+   return !!video_objs;
 }
 
 int
 main(int argc, char **argv)
 {
-   char *module_filename;
-   int i;
+   int args;
+   Eina_Rectangle     geometry = {0, 0, startw, starth};
+   char              *engine = NULL;
+   char              *backend = NULL;
+   int                verbose = 0;
+   int                visual = EMOTION_VIS_NONE;
+   unsigned char      help = 0;
+   unsigned char      engines_listed = 0;
+   Ecore_Getopt_Value values[] = {
+      ECORE_GETOPT_VALUE_STR(engine),
+      ECORE_GETOPT_VALUE_BOOL(engines_listed),
+      ECORE_GETOPT_VALUE_PTR_CAST(geometry),
+      ECORE_GETOPT_VALUE_STR(backend),
+      ECORE_GETOPT_VALUE_INT(visual),
+      ECORE_GETOPT_VALUE_INT(verbose),
+      ECORE_GETOPT_VALUE_BOOL(reflex),
+      ECORE_GETOPT_VALUE_NONE,
+      ECORE_GETOPT_VALUE_NONE,
+      ECORE_GETOPT_VALUE_NONE,
+      ECORE_GETOPT_VALUE_BOOL(help),
+      ECORE_GETOPT_VALUE_NONE
+    };
 
-   if (main_start(argc, argv) < 1) return -1;
-   bg_setup();
 
-   module_filename = "xine";
+   if (!ecore_evas_init())
+     return -1;
+   if (!edje_init())
+     goto shutdown_ecore_evas;
 
-   for (i = 1; i < argc; i++)
+   start_time = ecore_time_get();
+   ecore_event_handler_add(ECORE_EVENT_SIGNAL_EXIT, main_signal_exit, NULL);
+   edje_frametime_set(1.0 / 30.0);
+
+   ecore_app_args_set(argc, (const char **)argv);
+   args = ecore_getopt_parse(&options, values, argc, argv);
+   if (args < 0) goto shutdown_edje;
+   else if (help) goto shutdown_edje;
+   else if (engines_listed) goto shutdown_edje;
+   else if (args == argc)
      {
-	if (((!strcmp(argv[i], "-g")) ||
-	    (!strcmp(argv[i], "-geometry")) ||
-	    (!strcmp(argv[i], "--geometry"))) && (i < (argc - 1)))
-	     i++;
-	else if (((!strcmp(argv[i], "-h")) ||
-	    (!strcmp(argv[i], "-help")) ||
-	    (!strcmp(argv[i], "--help"))))
-	  {
-	     printf("Usage:\n");
-	     printf("  %s [-gl] [-g WxH] [-xine] [-gstreamer] filename\n", argv[0]);
-	     exit(-1);
-	  }
-	else if (!strcmp(argv[i], "-gl"))
-	  {
-	  }
-	else if (!strcmp(argv[i], "-fb"))
-	  {
-	  }
-	else if (!strcmp(argv[i], "-xr"))
-	  {
-	  }
-	else if (!strcmp(argv[i], "-xine"))
-	  {
-             module_filename = "xine";
-	  }
-	else if (!strcmp(argv[i], "-gstreamer"))
-	  {
-             module_filename = "gstreamer";
-	  }
-        else
-	  {
-             printf ("module : %s\n", module_filename);
-	     init_video_object(module_filename, argv[i]);
-	  }
+        printf("must provide at least one file to play!\n");
+        goto shutdown_edje;
      }
 
-   ecore_idle_enterer_add(enter_idle, NULL);
+   if ((geometry.w == 0) || (geometry.h == 0))
+     {
+        if (geometry.w == 0) geometry.w = 320;
+        if (geometry.h == 0) geometry.h = 240;
+     }
+
+   printf("evas engine: %s\n", engine ? engine : "<auto>");
+   printf("emotion backend: %s\n", backend ? backend : "<auto>");
+   printf("vis: %d\n", vis);
+   printf("geometry: %d %d %dx%d\n", geometry.x, geometry.y, geometry.w, geometry.h);
+
+   ecore_evas = ecore_evas_new
+     (engine, geometry.x, geometry.y, geometry.w, geometry.h, NULL);
+   if (!ecore_evas)
+     goto shutdown_edje;
+
+//   ecore_evas_alpha_set(ecore_evas, EINA_TRUE);
+
+   ecore_evas_callback_delete_request_set(ecore_evas, main_delete_request);
+   ecore_evas_callback_resize_set(ecore_evas, main_resize);
+   ecore_evas_title_set(ecore_evas, "Evas Media Test Program");
+   ecore_evas_name_class_set(ecore_evas, "evas_media_test", "main");
+   ecore_evas_show(ecore_evas);
+   evas = ecore_evas_get(ecore_evas);
+   evas_image_cache_set(evas, 8 * 1024 * 1024);
+   evas_font_cache_set(evas, 1 * 1024 * 1024);
+   evas_font_path_append(evas, PACKAGE_DATA_DIR"/data/fonts");
+
+   emotion_init();
+
+   bg_setup();
+
+   for (; args < argc; args++)
+     init_video_object(backend, argv[args]);
+
+   ecore_animator_add(check_positions, NULL);
 
    ecore_main_loop_begin();
-   main_stop();
-   return 0;
-}
 
-#else
-int main()
-{
-	puts("Could not find Ecore_X.h or Ecore_Fb.h so test is disabled");
-	return 0;
+   main_signal_exit(NULL, 0, NULL);
+
+   emotion_shutdown();
+   ecore_evas_free(ecore_evas);
+   ecore_evas_shutdown();
+   edje_shutdown();
+
+   return 0;
+
+ shutdown_edje:
+   edje_shutdown();
+ shutdown_ecore_evas:
+   ecore_evas_shutdown();
+
+   return -1;
 }
-#endif

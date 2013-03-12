@@ -2,22 +2,51 @@
 
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = src data
+SUBDIRS = src data doc
 
-MAINTAINERCLEANFILES = Makefile.in aclocal.m4 config.guess emotion.spec \
-                       config.h.in config.sub configure install-sh \
-		       ltconfig ltmain.sh missing mkinstalldirs \
-		       stamp-h.in emotion_docs.tar emotion_docs.tar.gz \
-		       emotion.c acconfig.h debian/changelog depcomp
+MAINTAINERCLEANFILES = \
+Makefile.in \
+aclocal.m4 \
+config.guess \
+config.h.in \
+config.sub \
+configure \
+depcomp \
+install-sh \
+ltconfig \
+ltmain.sh \
+missing \
+mkinstalldirs \
+stamp-h.in \
+$(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.gz \
+$(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.bz2 \
+$(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-doc.tar.bz2
 
-bin_SCRIPTS =
+EXTRA_DIST = \
+README \
+AUTHORS \
+COPYING \
+autogen.sh \
+emotion.spec \
+emotion.spec.in \
+emotion.pc.in \
+m4/ac_attribute.m4 \
+m4/efl_binary.m4 \
+m4/efl_doxygen.m4 \
+m4/efl_edje_external.m4 \
+m4/efl_examples.m4 \
+m4/efl_shm_open.m4 \
+m4/emotion_check.m4 \
+m4/gst-element-check.m4
 
-EXTRA_DIST = README AUTHORS COPYING COPYING-PLAIN \
-	emotion.spec emotion.spec.in emotion.c.in gendoc Doxyfile \
-	emotion.pc.in debian/changelog debian/control \
-	debian/copyright debian/rules debian/libemotion0.install \
-	debian/libemotion-dev.install debian/libemotion-bin.install \
-	debian/libemotion-gstreamer.install debian/libemotion-xine.install
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = emotion.pc
+
+.PHONY: doc
+
+# Documentation
+
+doc:
+	@echo "entering doc/"
+	make -C doc doc

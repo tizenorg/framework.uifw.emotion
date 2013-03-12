@@ -20,6 +20,9 @@ struct _Emotion_Xine_Video
    xine_event_queue_t       *queue;
    volatile double           len;
    volatile double           pos;
+   volatile double           last_pos;
+   volatile double           volume;
+   volatile double           buffer;
    double                    fps;
    double                    ratio;
    int                       w, h;
@@ -29,23 +32,22 @@ struct _Emotion_Xine_Video
    volatile int              spu_channel;
    volatile int              audio_channel;
    volatile int              video_channel;
-   volatile double           seek_to_pos;
-   volatile double           seeked_pos;
    volatile int              fq;
    Emotion_Vis               vis;
-    int                       fd_read;
+   int                       fd_read;
    int                       fd_write;
    Ecore_Fd_Handler         *fd_handler;
    int                       fd_ev_read;
    int                       fd_ev_write;
    Ecore_Fd_Handler         *fd_ev_handler;
+   Ecore_Animator           *anim;
    unsigned char             play : 1;
    unsigned char             just_loaded : 1;
    unsigned char             video_mute : 1;
    unsigned char             audio_mute : 1;
    unsigned char             spu_mute : 1;
-   unsigned char             opt_no_video : 1;
-   unsigned char             opt_no_audio : 1;
+   Eina_Bool                 opt_no_video : 1;
+   Eina_Bool                 opt_no_audio : 1;
    volatile unsigned char    delete_me : 1;
    volatile unsigned char    no_time : 1;
    volatile unsigned char    opening : 1;
@@ -86,7 +88,11 @@ struct _Emotion_Xine_Event
    int   mtype;
 };
 
-unsigned char         module_open(Evas_Object *obj, const Emotion_Video_Module **module, void **video, Emotion_Module_Options *opt);
-void                  module_close(Emotion_Video_Module *module, void *video);
+extern int _emotion_xine_log_domain;
+#define DBG(...) EINA_LOG_DOM_DBG(_emotion_xine_log_domain, __VA_ARGS__)
+#define INF(...) EINA_LOG_DOM_INFO(_emotion_xine_log_domain, __VA_ARGS__)
+#define WRN(...) EINA_LOG_DOM_WARN(_emotion_xine_log_domain, __VA_ARGS__)
+#define ERR(...) EINA_LOG_DOM_ERR(_emotion_xine_log_domain, __VA_ARGS__)
+#define CRITICAL(...) EINA_LOG_DOM_CRIT(_emotion_xine_log_domain, __VA_ARGS__)
 
 #endif
