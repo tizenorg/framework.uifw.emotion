@@ -1662,16 +1662,6 @@ _video_size_get(GstElement *elem, int *width, int *height)
 }
 
 static void
-_main_frame_resize(void *data)
-{
-   Emotion_Gstreamer_Video *ev = data;
-   double ratio;
-
-   ratio = (double)ev->src_width / (double)ev->src_height;
-   _emotion_frame_resize(ev->obj, ev->src_width, ev->src_height, ratio);
-}
-
-static void
 _no_more_pads(GstElement *decodebin, gpointer data)
 {
    GstIterator *itr = NULL;
@@ -1683,7 +1673,11 @@ _no_more_pads(GstElement *decodebin, gpointer data)
      {
         if(_video_size_get(GST_ELEMENT(elem), &ev->src_width, &ev->src_height))
           {
-             ecore_main_loop_thread_safe_call_async(_main_frame_resize, ev);
+             double ratio;
+
+             ratio = (double)ev->src_width / (double)ev->src_height;
+             _emotion_frame_resize(ev->obj, ev->src_width, ev->src_height, ratio);
+
              gst_object_unref(elem);
              break;
           }

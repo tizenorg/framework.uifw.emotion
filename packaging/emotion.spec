@@ -1,6 +1,6 @@
 Name:             emotion
 Summary:          Media Library
-Version:          1.7.1+svn.76438+build01r01
+Version:          1.7.1+svn.76438slp2+build01
 Release:          1
 Group:            System Environment/Libraries
 License:          BSD
