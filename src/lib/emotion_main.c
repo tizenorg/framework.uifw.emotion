@@ -29,6 +29,7 @@ void *alloca (size_t);
 #endif
 
 #include <stdio.h>
+#include <Ecore.h>
 
 #ifdef EMOTION_HAVE_EEZE
 # include <sys/types.h>
@@ -39,7 +40,6 @@ void *alloca (size_t);
 #  include <linux/videodev2.h>
 # endif
 
-# include <Ecore.h>
 # include <Eeze.h>
 #endif
 
@@ -255,7 +255,7 @@ _emotion_check_device(Emotion_Webcam *ew)
 
  on_error:
 #endif
-   fprintf(stderr, "'%s' is not a webcam ['%s']\n", ew->name, strerror(errno));
+   fprintf(stderr, "Not a webcam ['%s']\n", strerror(errno));
    eina_stringshare_del(ew->syspath);
    eina_stringshare_del(ew->device);
    eina_stringshare_del(ew->name);

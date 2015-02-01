@@ -1,9 +1,9 @@
 Name:             emotion
 Summary:          Media Library
-Version:          1.7.1+svn.76438slp2+build01
+Version:          1.6.0+svn.76438slp2+build10
 Release:          1
 Group:            System Environment/Libraries
-License:          BSD-2-Clause
+License:          BSD
 URL:              http://www.enlightenment.org/
 Source0:          %{name}-%{version}.tar.gz
 Requires(post):   /sbin/ldconfig
@@ -52,24 +52,28 @@ Enlightenment suite for video playback.
 .
 This package provides the gstreamer module for emotion.
 
+
 %prep
 %setup -q
 
-%build
 
-%autogen
-%configure --enable-static \
-	--disable-rpath --enable-xine=no --disable-doc
+%build
+export CFLAGS+=" -fvisibility=hidden -fPIC -Wall"
+export LDFLAGS+=" -fvisibility=hidden -Wl,--hash-style=both -Wl,--as-needed"
+
+%autogen --enable-static \
+         --enable-xine=no \
+         --disable-doc
+
 make %{?jobs:-j%jobs}
 
 
 %install
-rm -rf %{buildroot}
 %make_install
-mkdir -p %{buildroot}/usr/share/license
-cp %{_builddir}/%{buildsubdir}/COPYING %{buildroot}/usr/share/license/%{name}
-cp %{_builddir}/%{buildsubdir}/COPYING %{buildroot}/usr/share/license/%{name}-devel
-cp %{_builddir}/%{buildsubdir}/COPYING %{buildroot}/usr/share/license/%{name}-gstreamer
+mkdir -p %{buildroot}/%{_datadir}/license
+cp %{_builddir}/%{buildsubdir}/COPYING %{buildroot}/%{_datadir}/license/%{name}
+cp %{_builddir}/%{buildsubdir}/COPYING %{buildroot}/%{_datadir}/license/%{name}-gstreamer
+
 
 %post -p /sbin/ldconfig
 
@@ -86,12 +90,10 @@ cp %{_builddir}/%{buildsubdir}/COPYING %{buildroot}/usr/share/license/%{name}-gs
 %files
 %defattr(-,root,root,-)
 %{_libdir}/libemotion.so.*
-%{_bindir}/emotion_*
-%{_datadir}/emotion/data/*.edj
-%{_libdir}/emotion
+%{_libdir}/emotion/em_generic.so
 %{_libdir}/edje/modules/emotion/*/module.so
-%manifest %{name}.manifest
-/usr/share/license/%{name}
+%{_datadir}/emotion/data/icon.edj
+%{_datadir}/license/%{name}
 %manifest %{name}.manifest
 
 
@@ -100,11 +102,12 @@ cp %{_builddir}/%{buildsubdir}/COPYING %{buildroot}/usr/share/license/%{name}-gs
 %{_includedir}/*
 %{_libdir}/pkgconfig/emotion*.pc
 %{_libdir}/libemotion.so
-/usr/share/license/%{name}-devel
+%{_bindir}/emotion_test
+%{_datadir}/emotion/data/theme.edj
 
 
 %files gstreamer
 %defattr(-, root, root)
-%{_libdir}/emotion/*gstreamer*.so
+%{_libdir}/emotion/gstreamer*.so
+%{_datadir}/license/%{name}-gstreamer
 %manifest %{name}-gstreamer.manifest
-/usr/share/license/%{name}-gstreamer

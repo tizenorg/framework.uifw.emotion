@@ -392,7 +392,7 @@ _file_set(struct _App *app)
    app->m = libvlc_media_new_path(app->libvlc, app->filename);
    if (!app->m)
      {
-	fprintf(stderr, "could not open path: \"%s\"\n", app->filename);
+	fprintf(stderr, "could not open\n");
 	return;
      }
 
