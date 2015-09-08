@@ -1,4 +1,4 @@
-Emotion 1.1.0
+Emotion 1.7.0
 
 Changes since Emotion 1.0.0:
 -------------------------
@@ -9,11 +9,16 @@ Additions:
 	- Sync rendering with Ecore_Animator.
 	- Track pending object for proper shutdown.
 	- Start handling embedded hardware customization.
+	- Add fimcconvert and capsfilter element for device
 
 Fixes:
 	- build out of tree.
 	- stride of all YUV video
 	- fix race condition in gstreamer render function on shutdown and file set.
+	- fix priority set/get for gstreamer.
+	- reset VLC pipeline on EOS.
+	- fix race condition on shutdown when still saving a file position.
+	- fix to call correct render function.
 
 Improvements:
 
